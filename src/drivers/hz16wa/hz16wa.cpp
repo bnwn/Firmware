@@ -151,7 +151,27 @@ int HZ16WA::measure()
     _flowmeter.timestamp = hrt_absolute_time();
     _flowmeter.max_Q = get_maximum_flowrate();
     _flowmeter.min_Q = get_minimum_flowrate();
-    _flowmeter.Q = float(_pwm.period)*
+    /* F(Hz) = [16 * Q]. err = 10% */
+    _flowmeter.Q = float(_pwm.period) * 1e-6f / 16;
+
+    /* Reset sensor when Q <= 0 */
+    if(_flowmeter.Q <= 0.0f) {
+        perf_count(_sensor_zero_resets);
+        perf_end(_sample_perf);
+        return reset();
+    }
+
+    if(_flowmeter_sensor_topic != nullptr) {
+        orb_publish(ORB_ID(flowmeter_sensor), _flowmeter_sensor_topic, &_flowmeter);
+    }
+
+    if(_reports->force(&_flowmeter)) {
+        perf_count(_buffer_overflows);
+    }
+
+    poll_notify(POLLIN);
+    perf_end(_sample_perf);
+    return OK;
 }
 
 /*
