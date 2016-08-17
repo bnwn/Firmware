@@ -3045,6 +3045,16 @@ PARAM_DEFINE_INT32(RC_RSSI_PWM_MIN, 2000);
 PARAM_DEFINE_INT32(SENS_EN_LL40LS, 0);
 
 /**
+ * Flowmeter (MJ-HZ16WA) PWM
+ *
+ * @reboot_required true
+ *
+ * @boolean
+ * @group Sensor Enable
+ */
+PARAM_DEFINE_INT32(SENS_EN_HZ16WA, 1);
+
+/**
  * Lightware SF0x laser rangefinder
  *
  * @reboot_required true
