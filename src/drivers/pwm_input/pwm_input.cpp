@@ -350,11 +350,11 @@ void PWMIN::_timer_init(void)
 	rDCR = 0;
 
 	/* for simplicity scale by the clock in MHz. This gives us
-	 * readings in microseconds which is typically what is needed
+     * readings in microseconds which is typically what is needed
 	 * for a PWM input driver */
 	uint32_t prescaler = PWMIN_TIMER_CLOCK / 1000000UL;
 
-	/*
+    /*F
 	 * define the clock speed. We want the highest possible clock
 	 * speed that avoids overflows.
 	 */

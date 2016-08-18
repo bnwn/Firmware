@@ -48,6 +48,7 @@
 #include <drivers/drv_hrt.h>
 #include <drivers/drv_device.h>
 #include <drivers/drv_flowmeter.h>
+#include <drivers/drv_pwm_input.h>
 #include <drivers/device/device.h>
 #include <drivers/device/ringbuffer.h>
 #include <systemlib/perf_counter.h>
@@ -66,6 +67,16 @@
 
 #define HZ16WA_DEVICE_PATH "/dev/hz16wa"
 
+/* Device limits */
+#define HZ16WA_MIN_FLOWRATE
+#define HZ16WA_MAX_FLOWRATE
+
+/* default conversion wait time */
+#define HZ16WA_CONVERSION_INTERVAL 50*1000UL /* 50ms */
+
+/* maximun time to wait for a conversion to complete */
+#define HZ16WA_CONVERSION_TIMEOUT
+
 
 class HZ16WA : public device::CDev
 {
@@ -82,13 +93,13 @@ public:
 	* @brief
 	*   Diagnostics - print some basic information about the driver.
 	*/
-	void print_info() override;
+    void print_info();
 
 	/**
 	 * @brief
 	 *   print registers to console
 	 */
-	void print_registers() override;
+    void print_registers();
 
 	/**
 	* Static trampoline from the workq context; because we don't have a
@@ -96,55 +107,48 @@ public:
 	*
 	* @param arg        Instance pointer for the driver that is polling.
 	*/
-	static void     cycle_trampoline(void *arg);
+    static void cycle_trampoline(void *arg);
 
 protected:
 	virtual int probe();
 
-        /**
-        * Set the min and max distance thresholds if you want the end points of the sensors
-        * range to be brought in at all, otherwise it will use the defaults LL40LS_MIN_DISTANCE
-        * and LL40LS_MAX_DISTANCE
-        */
-        void                set_minimum_flowrate(const float min);
-        void                set_maximum_flowrate(const float max);
-        float               get_minimum_flowrate() const;
-        float               get_maximum_flowrate() const;
+    /**
+    * Set the min and max distance thresholds if you want the end points of the sensors
+    * range to be brought in at all, otherwise it will use the defaults LL40LS_MIN_DISTANCE
+    * and LL40LS_MAX_DISTANCE
+    */
+    void                set_minimum_flowrate(const float min);
+    void                set_maximum_flowrate(const float max);
+    float               get_minimum_flowrate() const;
+    float               get_maximum_flowrate() const;
+
 private:
 	work_s			_work;
-	ringbuffer::RingBuffer	*_reports;
-        int                     _measure_ticks;
-        int                     _class_instance;
-        int                     _orb_class_instance;
+    ringbuffer::RingBuffer	*_reports;
+    int                     _class_instance;
+    int                     _orb_class_instance;
 	int			_pwmSub;
 	struct pwm_input_s	_pwm;
 	orb_advert_t	        _flowmeter_sensor_topic;
 	struct flowmeter_sensor_s _flowmeter;
-        float                   _max_flowrate;
-        float                   _min_flowrate;
+    float                   _max_flowrate;
+    float                   _min_flowrate;
 
 	perf_counter_t	        _sample_perf;
 	perf_counter_t	        _read_errors;
-	perf_counter_t	        _buffer_overflows;
-	perf_counter_t	        _sensor_zero_resets;
+    perf_counter_t	        _buffer_overflows;
+    perf_counter_t	        _sensor_zero_resets;
 
+    int                     _measure_ticks;
 	/**
 	 * Start automatic measurement
 	 */
-	void start() override;
+    void start();
 
 	/**
 	 * Stop automatic measurement
 	 */
-	void stop() override;
-
-	/**
-	 * Static trampoline from the workq context; because we don't have a
-	 * generic workq wrapper yet.
-	 *
-	 * @param arg	Instance pointer for the driver that is polling.
-	 */
-	static void cycle_trampoline(void *arg);
+    void stop();
 
 	/**
 	 * Perform a poll cycle; collect from the previous measurement
@@ -155,15 +159,15 @@ private:
 	/**
 	 * Fetch measurements from the sensor and update the report ring.
 	 */
-	int measure() override;
+    int measure();
 
 	/**
 	 * Collect the result of the most recent measurement.
 	 */
-	int collect() override;
+    int collect();
 
 	/**
 	 *  Reset the driver.
 	 */
-        int reset() override;
+    int reset();
 };
