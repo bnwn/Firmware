@@ -183,8 +183,8 @@ int HZ16WA::measure()
     _flowmeter.pluse_rate = 1.0f / (float(_pwm.period) * 1e-6f);
     _flowmeter.max_flowrate = get_maximum_flowrate();
     _flowmeter.min_flowrate = get_minimum_flowrate();
-    /* F(Hz) = [16 * Q]. err = 10%. F = pulse_rate, Q = flowrate */
-    _flowmeter.flowrate = _flowmeter.pluse_rate / 16;
+    /* F(Hz) = [FLOWMETER_CONVERSION_COEFFICIENT * Q]. err = 10%. F = pulse_rate, Q = flowrate */
+    _flowmeter.flowrate = _flowmeter.pluse_rate / FLOWMETER_CONVERSION_COEFFICIENT;
 
     /* Reset sensor when flowrate <= 0 */
     if (_flowmeter.flowrate <= 0.0f) {
@@ -193,7 +193,6 @@ int HZ16WA::measure()
         return reset();
     }
 
-    warnx("update topic.");
     if (_flowmeter_sensor_topic != nullptr) {
         orb_publish(ORB_ID(flowmeter_sensor), _flowmeter_sensor_topic, &_flowmeter);
     }
@@ -472,7 +471,7 @@ void test()
     warnx("time: %lld", report.timestamp);
 
     /* start the sensor polling at setting interval(Hz) */
-    if (OK != ioctl(fd, SENSORIOCSPOLLRATE, 1)) {
+    if (OK != ioctl(fd, SENSORIOCSPOLLRATE, 20)) {
         errx(1, "falied to set poll rate!");
     }
 
@@ -492,11 +491,12 @@ void test()
         }
 
         /* go to get it */
-        sz = read(fd, &report, sizeof(report));
+        //sz = read(fd, &report, sizeof(report));
+        orb_copy(ORB_ID(flowmeter_sensor), fd, &report);
 
-        if (sz != sizeof(report)) {
-            err(1, "periodic read failed");
-        }
+//        if (sz != sizeof(report)) {
+//            err(1, "periodic read failed");
+//        }
 
         warnx("periodic read %d", ++i);
 

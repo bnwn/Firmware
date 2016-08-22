@@ -47,6 +47,18 @@
 #define FLOWMETER_BASE_DEVICE_PATH	"/dev/flowmeter"
 #define FLOWMETER0_DEVICE_PATH          "/dev/flowmeter0"
 
+/* Flowmeter conversion multiple */
+/* #define FLOWMETER_HZ16WA */
+
+#define FLOWMETER_A68_1
+
+#ifdef FLOWMETER_HZ16WA
+#define FLOWMETER_CONVERSION_COEFFICIENT 16
+#endif
+#ifdef FLOWMETER_A68_1
+#define FLOWMETER_CONVERSION_COEFFICIENT 25
+#endif
+
 /*
  * ioctl() definitions
  *

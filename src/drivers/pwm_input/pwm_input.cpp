@@ -233,8 +233,8 @@ public:
 	PWMIN();
 	virtual ~PWMIN();
 
-	virtual int init();
-	virtual int open(struct file *filp);
+    virtual int init();
+    virtual int open(struct file *filp);
 	virtual ssize_t read(struct file *filp, char *buffer, size_t buflen);
 	virtual int ioctl(struct file *filp, int cmd, unsigned long arg);
 
@@ -306,10 +306,10 @@ PWMIN::init()
 
 	if (_reports == nullptr) {
 		return -ENOMEM;
-	}
+    }
 
 	/* Schedule freeze check to invoke periodically */
-	hrt_call_every(&_freeze_test_call, 0, TIMEOUT_POLL, reinterpret_cast<hrt_callout>(&PWMIN::_freeze_test), this);
+//	hrt_call_every(&_freeze_test_call, 0, TIMEOUT_POLL, reinterpret_cast<hrt_callout>(&PWMIN::_freeze_test), this);
 
 	return OK;
 }
@@ -375,7 +375,7 @@ void PWMIN::_timer_init(void)
 
 	px4_leave_critical_section(flags);
 
-	_timer_started = true;
+    _timer_started = true;
 }
 
 // XXX refactor this out of this driver
@@ -417,17 +417,17 @@ PWMIN::hard_reset()
 int
 PWMIN::open(struct file *filp)
 {
-	if (g_dev == nullptr) {
-		return -EIO;
-	}
+    if (g_dev == nullptr) {
+        return -EIO;
+    }
 
-	int ret = CDev::open(filp);
+    int ret = CDev::open(filp);
 
-	if (ret == OK && !_timer_started) {
-		g_dev->_timer_init();
-	}
+    if (ret == OK && !_timer_started) {
+        g_dev->_timer_init();
+    }
 
-	return ret;
+    return ret;
 }
 
 
@@ -465,7 +465,7 @@ PWMIN::ioctl(struct file *filp, int cmd, unsigned long arg)
 		 * purpose (such as PWM output) */
 		_timer_init();
 		/* also reset the sensor */
-		hard_reset();
+//		hard_reset();
 		return OK;
 
 	default:
@@ -552,7 +552,7 @@ static int pwmin_tim_isr(int irq, void *context)
 	uint32_t pulse_width = rCCR_PWMIN_B;
 
 	/* ack the interrupts we just read */
-	rSR = 0;
+    rSR = 0;
 
 	if (g_dev != nullptr) {
 		g_dev->publish(status, period, pulse_width);
@@ -608,7 +608,7 @@ static void pwmin_test(void)
 			       (unsigned)buf.error_count);
 
 		} else {
-			/* no data, retry in 2 ms */
+            /* no data, retry in 2 ms */
 			::usleep(2000);
 		}
 	}
@@ -622,7 +622,7 @@ static void pwmin_test(void)
  */
 static void pwmin_reset(void)
 {
-	g_dev->hard_reset();
+//	g_dev->hard_reset();
 	int fd = open(PWMIN0_DEVICE_PATH, O_RDONLY);
 
 	if (fd == -1) {

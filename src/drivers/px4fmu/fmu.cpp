@@ -576,7 +576,10 @@ PX4FMU::set_mode(Mode mode)
 		_pwm_default_rate = 50;
 		_pwm_alt_rate = 50;
 		_pwm_alt_rate_channels = 0;
-		_pwm_mask = 0x3f;
+        /* set servo output 5 to pwm_input.but not only here.
+         * _pwm_mask = 0x3f;
+         */
+        _pwm_mask = 0x2f;
 		_pwm_initialized = false;
 
 		break;
