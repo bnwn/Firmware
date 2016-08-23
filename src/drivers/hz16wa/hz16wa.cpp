@@ -107,6 +107,7 @@ void HZ16WA::print_info()
 
     warnx("poll interval:   %u ticks.", _measure_ticks);
     warnx("flowrate:    %.3fL/min, PWM:     %.3fHz", (double)_flowmeter.flowrate, (double)_flowmeter.pluse_rate);
+    warnx("flowmeter pesticide_remaining: %d .\n", _flowmeter.pesticide_remaining);
 }
 
 void HZ16WA::print_registers()
@@ -170,27 +171,42 @@ void HZ16WA::cycle()
 
 int HZ16WA::measure()
 {
+    static uint64_t begin_times = hrt_absolute_time();
     perf_begin(_sample_perf);
 
     if (OK != collect()) {
-        DEVICE_DEBUG("collection error.");
+        DEVICE_DEBUG("collection error or empty.");
         perf_count(_read_errors);
         perf_end(_sample_perf);
-        return ERROR;
+
+        _flowmeter.pluse_rate = 0;
+        _flowmeter.flowrate = 0;
+
+    } else {
+
+        _flowmeter.pluse_rate = 1.0f / (float(_pwm.period) * 1e-6f);
+        /* F(Hz) = [FLOWMETER_CONVERSION_COEFFICIENT * Q]. err = 10%. F = pulse_rate, Q = flowrate */
+        _flowmeter.flowrate = _flowmeter.pluse_rate / FLOWMETER_CONVERSION_COEFFICIENT;
     }
 
     _flowmeter.timestamp = hrt_absolute_time();
-    _flowmeter.pluse_rate = 1.0f / (float(_pwm.period) * 1e-6f);
     _flowmeter.max_flowrate = get_maximum_flowrate();
     _flowmeter.min_flowrate = get_minimum_flowrate();
-    /* F(Hz) = [FLOWMETER_CONVERSION_COEFFICIENT * Q]. err = 10%. F = pulse_rate, Q = flowrate */
-    _flowmeter.flowrate = _flowmeter.pluse_rate / FLOWMETER_CONVERSION_COEFFICIENT;
 
-    /* Reset sensor when flowrate <= 0 */
-    if (_flowmeter.flowrate <= 0.0f) {
+    /* Reset sensor when flowrate < 0 */
+    if (_flowmeter.flowrate < 0.0f) {
         perf_count(_sensor_zero_resets);
         perf_end(_sample_perf);
         return reset();
+    }
+
+    if (_flowmeter.flowrate < 0.5f && (_flowmeter.timestamp - begin_times) > HZ16WA_EMPTY_TIMEOUT) {
+        _flowmeter.pesticide_remaining = false;
+
+    } else if (_flowmeter.flowrate >= 0.5f) {
+
+        _flowmeter.pesticide_remaining = true;
+        begin_times = hrt_absolute_time();
     }
 
     if (_flowmeter_sensor_topic != nullptr) {
@@ -503,6 +519,7 @@ void test()
         /* Print the flowmeter report flowrate and pwm */
         warnx("measurement: %0.3f L/min of flowmeter, PWM: %0.3f Hz", (double) report.flowrate, (double) report.pluse_rate);
         warnx("timeL %lld", report.timestamp);
+        warnx("flowmeter_pesticide_remaining:%d .\n", report.pesticide_remaining);
     }
 
     /* reset the sensor polling to default rate */

@@ -685,6 +685,8 @@ Navigator::status()
 	} else {
 		warnx("Geofence not set (no /etc/geofence.txt on microsd) or not valid");
 	}
+
+    warnx("nav_state: %d .\n", _vstatus.nav_state);
 }
 
 void

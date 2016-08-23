@@ -104,6 +104,7 @@
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vtol_vehicle_status.h>
+#include <uORB/topics/flowmeter_sensor.h>
 #include <uORB/uORB.h>
 
 /* oddly, ERROR is not defined for c++ */
@@ -1266,6 +1267,8 @@ int commander_thread_main(int argc, char *argv[])
 	/* vehicle status topic */
 	memset(&status, 0, sizeof(status));
 
+    status.pesticide_remaining = true;
+    status.pesticide_spraying = false;
 	// We want to accept RC inputs as default
 	status_flags.rc_input_blocked = false;
 	status.rc_input_mode = vehicle_status_s::RC_IN_MODE_DEFAULT;
@@ -1454,6 +1457,11 @@ int commander_thread_main(int argc, char *argv[])
 	int sensor_sub = orb_subscribe(ORB_ID(sensor_combined));
 	struct sensor_combined_s sensors;
 	memset(&sensors, 0, sizeof(sensors));
+
+    /* Subscribe to flowmeter topic */
+    int flowmeter_sub = orb_subscribe(ORB_ID(flowmeter_sensor));
+    struct flowmeter_sensor_s flowmeter;
+    memset(&flowmeter, 0, sizeof(flowmeter));
 
 	/* Subscribe to differential pressure topic */
 	int diff_pres_sub = orb_subscribe(ORB_ID(differential_pressure));
@@ -2647,19 +2655,35 @@ int commander_thread_main(int argc, char *argv[])
 			}
 		}
 
-		/* handle commands last, as the system needs to be updated to handle them */
-		orb_check(cmd_sub, &updated);
+        orb_check(flowmeter_sub, &updated);
 
-		if (updated) {
-			/* got command */
-			orb_copy(ORB_ID(vehicle_command), cmd_sub, &cmd);
+        if (updated) {
+            orb_copy(ORB_ID(flowmeter_sensor), flowmeter_sub, &flowmeter);
+            status.pesticide_remaining = flowmeter.pesticide_remaining;
+        }
 
-			/* handle it */
-			if (handle_command(&status, &safety, &cmd, &armed, &_home, &global_position, &local_position,
-					&attitude, &home_pub, &command_ack_pub, &command_ack)) {
-				status_changed = true;
-			}
-		}
+        /* if pesticide is not remaining,return home */
+        if (!status.pesticide_remaining && status.pesticide_spraying) {
+            /* return */
+            main_state_transition(&status, commander_state_s::MAIN_STATE_AUTO_RTL, main_state_prev, &status_flags, &internal_state);
+
+        } else {
+
+            /* handle commands last, as the system needs to be updated to handle them */
+            orb_check(cmd_sub, &updated);
+
+            if (updated) {
+                /* got command */
+                orb_copy(ORB_ID(vehicle_command), cmd_sub, &cmd);
+
+                /* handle it */
+                if (handle_command(&status, &safety, &cmd, &armed, &_home, &global_position, &local_position,
+                        &attitude, &home_pub, &command_ack_pub, &command_ack)) {
+                    status_changed = true;
+                }
+            }
+        }
+
 
 		/* Check for failure combinations which lead to flight termination */
 		if (armed.armed &&

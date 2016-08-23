@@ -74,8 +74,10 @@
 /* default conversion wait time */
 #define HZ16WA_CONVERSION_INTERVAL 50*1000UL /* 50ms */
 
+#define HZ16WA_EMPTY_TIMEOUT       1000*1000UL /* 1s */
+
 /* maximun time to wait for a conversion to complete */
-#define HZ16WA_CONVERSION_TIMEOUT
+#define HZ16WA_CONVERSION_TIMEOUT  1000*1000UL /* 1s */
 
 
 class HZ16WA : public device::CDev
@@ -128,7 +130,7 @@ private:
     int                     _class_instance;
     int                     _orb_class_instance;
 	int			_pwmSub;
-	struct pwm_input_s	_pwm;
+    struct pwm_input_s	_pwm;
 	orb_advert_t	        _flowmeter_sensor_topic;
 	struct flowmeter_sensor_s _flowmeter;
     float                   _max_flowrate;

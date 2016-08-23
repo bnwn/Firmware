@@ -65,6 +65,9 @@ bool engine_failure				# Set to true if an engine failure is detected
 bool engine_failure_cmd				# Set to true if an engine failure mode is commanded
 bool mission_failure				# Set to true if mission could not continue/finish
 
+bool pesticide_remaining
+bool pesticide_spraying
+
 # see SYS_STATUS mavlink message for the following
 uint32 onboard_control_sensors_present
 uint32 onboard_control_sensors_enabled
