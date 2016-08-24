@@ -109,7 +109,7 @@
 #define LED_PATTERN_IO_FMU_ARMED 		0xffff		/**< constantly on			*/
 
 /* pump working pwm */
-#define PUMP_WORKING_PWM 200*20
+#define PUMP_WORKING_PWM 1200
 #define SERVO_PWM_MAX    20*1000UL
 
 #if !defined(BOARD_HAS_PWM)
