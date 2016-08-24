@@ -50,7 +50,6 @@
 #include <systemlib/mixer/mixer_multirotor.generated.h>
 #include <systemlib/param/param.h>
 #include <systemlib/pwm_limit/pwm_limit.h>
-#include <dev_fs_lib_serial.h>
 #include <v1.0/checksum.h>
 #include <v1.0/mavlink_types.h>
 #include <v1.0/common/mavlink.h>
@@ -518,7 +517,7 @@ extern "C" __EXPORT int pwm_out_rc_in_main(int argc, char *argv[]);
 
 int pwm_out_rc_in_main(int argc, char *argv[])
 {
-	const char *device = nullptr;
+    const char * device = nullptr;
 	int ch;
 	int myoptind = 1;
 	const char *myoptarg = nullptr;

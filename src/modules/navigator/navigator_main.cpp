@@ -687,6 +687,7 @@ Navigator::status()
 	}
 
     warnx("nav_state: %d .\n", _vstatus.nav_state);
+    warnx("pesticle_remaining: %d . \npesticide_spraying: %d .", _vstatus.pesticide_remaining, _vstatus.pesticide_spraying);
 }
 
 void

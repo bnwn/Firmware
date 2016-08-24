@@ -33,6 +33,8 @@
 px4_add_module(
 	MODULE drivers__pwm_out_rc_in
 	MAIN pwm_out_rc_in
+	STACK_MAIN 1200
+	STACK_MAX 1200
 	COMPILE_FLAGS
 		-Os
 		-DMAVLINK_COMM_NUM_BUFFERS=1

@@ -45,6 +45,7 @@ set(config_module_list
 	#drivers/oreoled
 	drivers/gimbal
 	drivers/pwm_input
+	#drivers/pwm_out_rc_in
 	drivers/camera_trigger
 	drivers/bst
 	drivers/snapdragon_rc_pwm
