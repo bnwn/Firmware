@@ -1048,6 +1048,7 @@ PX4FMU::cycle()
 			}
 		}
 
+#ifdef MIX_CONTROL
 		/* can we mix? */
 		if (_mixers != nullptr) {
 
@@ -1113,7 +1114,10 @@ PX4FMU::cycle()
 
 			publish_pwm_outputs(pwm_limited, num_outputs);
 		}
+#else
+#endif
 	}
+
 
     /* set AUX6 to control pump, cannot not use mix.*/
     bool updated = false;
@@ -1121,12 +1125,10 @@ PX4FMU::cycle()
 
     if (updated) {
         orb_copy(ORB_ID(input_rc), _rc_input_sub, &_rc_in);
-        warnx("rc success.");
         if (_rc_in.channel_count > 8) {
-            warnx("pwm output success");
-            _pump_pwm = (_rc_in.values[8] - 1000) * 20;
-            pwm_output_set(5, _pump_pwm);
-//            pwm_output_set(3, SERVO_PWM_MAX);
+            _pump_pwm =_rc_in.values[8];
+            pwm_output_set(3, _pump_pwm);
+//            pwm_output_set(2, SERVO_PWM_MAX);
 
             if (_pump_pwm > PUMP_WORKING_PWM) {
                 _pesticide_spraying = true;
