@@ -1142,23 +1142,6 @@ PX4FMU::cycle()
             DEVICE_LOG("rc not exist channel 9.");
         }
     }
-
-    /* update vehicle status */
-    orb_check(_vehicle_status_sub, &updated);
-
-    if (updated) {
-        orb_copy(ORB_ID(vehicle_status), _vehicle_status_sub, &_vehicle_status);
-
-        _vehicle_status.pesticide_spraying = _pesticide_spraying;
-
-        if (_vehicle_status_pub == nullptr) {
-            _vehicle_status_pub = orb_advertise(ORB_ID(vehicle_status), &_vehicle_status);
-
-        } else {
-            orb_publish(ORB_ID(vehicle_status), _vehicle_status_pub, &_vehicle_status);
-        }
-    }
-
 	_cycle_timestamp = hrt_absolute_time();
 
 #ifdef GPIO_BTN_SAFETY
