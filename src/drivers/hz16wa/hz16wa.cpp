@@ -204,7 +204,6 @@ int HZ16WA::measure()
         _flowmeter.pesticide_remaining = false;
 
     } else if (_flowmeter.flowrate >= 0.5f) {
-
         _flowmeter.pesticide_remaining = true;
         begin_times = hrt_absolute_time();
     }
@@ -262,7 +261,7 @@ ssize_t HZ16WA::read(file *filp, char *buffer, size_t buflen)
 
     return ret;
 }
-\
+
 int HZ16WA::ioctl(file *filp, int cmd, unsigned long arg)
 {
     switch (cmd) {

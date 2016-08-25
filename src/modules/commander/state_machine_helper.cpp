@@ -412,9 +412,9 @@ main_state_transition(struct vehicle_status_s *status, main_state_t new_main_sta
 	case commander_state_s::MAIN_STATE_AUTO_LAND:
 
 		/* need global position and home position */
-		if (status_flags->condition_global_position_valid && status_flags->condition_home_position_valid) {
-			ret = TRANSITION_CHANGED;
-		}
+        if (status_flags->condition_global_position_valid && status_flags->condition_home_position_valid) {
+            ret = TRANSITION_CHANGED;
+        }
 
 		break;
 

@@ -105,6 +105,7 @@
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vtol_vehicle_status.h>
 #include <uORB/topics/flowmeter_sensor.h>
+#include <uORB/topics/input_rc.h>
 #include <uORB/uORB.h>
 
 /* oddly, ERROR is not defined for c++ */
@@ -150,6 +151,9 @@ static constexpr uint8_t COMMANDER_MAX_GPS_NOISE = 60;		/**< Maximum percentage 
 
 #define HIL_ID_MIN 1000
 #define HIL_ID_MAX 1999
+
+/* pump working pwm */
+#define PUMP_WORKING_PWM 1200
 
 /* Mavlink log uORB handle */
 static orb_advert_t mavlink_log_pub = 0;
@@ -1463,6 +1467,11 @@ int commander_thread_main(int argc, char *argv[])
     struct flowmeter_sensor_s flowmeter;
     memset(&flowmeter, 0, sizeof(flowmeter));
 
+    /* Subscribe to input_rc topic */
+    int input_rc_sub = orb_subscribe(ORB_ID(input_rc));
+    struct input_rc_s rc_input;
+    memset(&rc_input, 0, sizeof(rc_input));
+
 	/* Subscribe to differential pressure topic */
 	int diff_pres_sub = orb_subscribe(ORB_ID(differential_pressure));
 	struct differential_pressure_s diff_pres;
@@ -2655,11 +2664,22 @@ int commander_thread_main(int argc, char *argv[])
 			}
 		}
 
-        orb_check(flowmeter_sub, &updated);
+        /* check rc input channel 9 */
+        orb_check(input_rc_sub, &updated);
 
         if (updated) {
+            orb_copy(ORB_ID(input_rc), input_rc_sub, &rc_input);
+            status.pesticide_spraying = rc_input.values[8] > PUMP_WORKING_PWM ? true : false;
+        }
+
+        orb_check(flowmeter_sub, &updated);
+
+        if (updated && status.pesticide_spraying) {
             orb_copy(ORB_ID(flowmeter_sensor), flowmeter_sub, &flowmeter);
             status.pesticide_remaining = flowmeter.pesticide_remaining;
+
+        } else {
+            status.pesticide_remaining = true;
         }
 
         /* if pesticide is not remaining,return home */

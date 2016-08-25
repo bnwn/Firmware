@@ -108,8 +108,6 @@
 #define LED_PATTERN_FMU_ARMED 			0x5500		/**< long off, then quad blink 		*/
 #define LED_PATTERN_IO_FMU_ARMED 		0xffff		/**< constantly on			*/
 
-/* pump working pwm */
-#define PUMP_WORKING_PWM 1200
 #define SERVO_PWM_MAX    20*1000UL
 
 #if !defined(BOARD_HAS_PWM)
@@ -195,8 +193,7 @@ private:
 	float		_analog_rc_rssi_volt;
 	bool		_analog_rc_rssi_stable;
 	orb_advert_t	_to_input_rc;
-	orb_advert_t	_outputs_pub;
-    orb_advert_t    _vehicle_status_pub;
+    orb_advert_t	_outputs_pub;
     bool            _pesticide_spraying;
 	unsigned	_num_outputs;
 	int		_class_instance;
@@ -317,13 +314,11 @@ PX4FMU::PX4FMU() :
     _rc_input_sub(-1),
     _vehicle_status_sub(-1),
     _pump_pwm(0),
-	_rc_in{},
-    _vehicle_status{},
+    _rc_in{},
 	_analog_rc_rssi_volt(-1.0f),
 	_analog_rc_rssi_stable(false),
 	_to_input_rc(nullptr),
-	_outputs_pub(nullptr),
-    _vehicle_status_pub(nullptr),
+    _outputs_pub(nullptr),
     _pesticide_spraying(false),
 	_num_outputs(0),
 	_class_instance(0),
@@ -1128,20 +1123,13 @@ PX4FMU::cycle()
         if (_rc_in.channel_count > 8) {
             _pump_pwm =_rc_in.values[8];
             pwm_output_set(3, _pump_pwm);
-//            pwm_output_set(2, SERVO_PWM_MAX);
-
-            if (_pump_pwm > PUMP_WORKING_PWM) {
-                _pesticide_spraying = true;
-
-            } else {
-                _pesticide_spraying = false;
-            }
 
         } else {
 
             DEVICE_LOG("rc not exist channel 9.");
         }
     }
+
 	_cycle_timestamp = hrt_absolute_time();
 
 #ifdef GPIO_BTN_SAFETY
