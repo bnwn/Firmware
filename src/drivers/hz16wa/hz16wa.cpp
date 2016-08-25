@@ -191,10 +191,6 @@ int HZ16WA::measure()
         _flowmeter.flowrate = _flowmeter.pluse_rate / FLOWMETER_CONVERSION_COEFFICIENT;
     }
 
-    _flowmeter.timestamp = hrt_absolute_time();
-    _flowmeter.max_flowrate = get_maximum_flowrate();
-    _flowmeter.min_flowrate = get_minimum_flowrate();
-
     /* Reset sensor when flowrate < 0 */
     if (_flowmeter.flowrate < 0.0f) {
         perf_count(_sensor_zero_resets);
@@ -215,10 +211,14 @@ int HZ16WA::measure()
     _flowrate_arr[9] = _flowmeter.flowrate;
     _flowmeter.flowrate = (sum_flowrate - max_flowrate - min_flowrate) / 8;
 
-    if (_flowmeter.flowrate < 0.5f && (_flowmeter.timestamp - begin_times) > HZ16WA_EMPTY_TIMEOUT) {
+    _flowmeter.timestamp = hrt_absolute_time();
+    _flowmeter.max_flowrate = get_maximum_flowrate();
+    _flowmeter.min_flowrate = get_minimum_flowrate();
+
+    if (_flowmeter.flowrate < 0.2f && (_flowmeter.timestamp - begin_times) > HZ16WA_EMPTY_TIMEOUT) {
         _flowmeter.pesticide_remaining = false;
 
-    } else if (_flowmeter.flowrate >= 0.5f) {
+    } else if (_flowmeter.flowrate >= 0.2f) {
         begin_times = hrt_absolute_time();
     }
 
