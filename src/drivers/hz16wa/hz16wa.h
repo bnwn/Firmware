@@ -56,6 +56,7 @@
 #include <uORB/uORB.h>
 #include <uORB/topics/pwm_input.h>
 #include <uORB/topics/flowmeter_sensor.h>
+#include <uORB/topics/input_rc.h>
 
 #include <board_config.h>
 #include <systemlib/err.h>
@@ -132,6 +133,8 @@ private:
     struct pwm_input_s	_pwm;
     orb_advert_t	        _flowmeter_sensor_topic;
     struct flowmeter_sensor_s _flowmeter;
+    int						_input_rc_sub;
+    struct input_rc_s       _rc;
     float                   _max_flowrate;
     float                   _min_flowrate;
     float					_flowrate_arr[10];

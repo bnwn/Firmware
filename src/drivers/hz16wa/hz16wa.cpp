@@ -37,6 +37,8 @@ HZ16WA::HZ16WA(const char *path) :
     _pwm{},
     _flowmeter_sensor_topic(nullptr),
     _flowmeter{},
+	_input_rc_sub(-1),
+	_rc{},
 	_flowrate_arr{},
     _sample_perf(perf_alloc(PC_ELAPSED, "hz16wa_read")),
     _read_errors(perf_alloc(PC_COUNT, "hz16wa_read_errors")),
@@ -91,6 +93,9 @@ int HZ16WA::init()
     _reports->get(&fs_report);
     _flowmeter_sensor_topic = orb_advertise_multi(ORB_ID(flowmeter_sensor), &fs_report,
                                                   &_orb_class_instance, ORB_PRIO_DEFAULT);
+
+    /* Subscribe input_rc topic */
+    _input_rc_sub = orb_subscribe(ORB_ID(input_rc));
 
     if (_flowmeter_sensor_topic == nullptr) {
         DEVICE_DEBUG("failed to create flowmeter_sensor. Did you start uORB?");
@@ -162,7 +167,16 @@ float HZ16WA::get_minimum_flowrate() const
 
 void HZ16WA::cycle()
 {
-    measure();
+	bool updated;
+	orb_check(_input_rc_sub, &updated);
+
+	if (updated) {
+		orb_copy(ORB_ID(input_rc), _input_rc_sub, &_rc);
+
+		if (_rc.channel_count > 8 && _rc.values[8] > _rc.PUMP_WORKING_PWM) {
+			measure();
+		}
+	}
 
     /* schedule a fresh cycle call when the measurement is done */
     work_queue(HPWORK, &_work, (worker_t)&HZ16WA::cycle_trampoline, this, _measure_ticks);

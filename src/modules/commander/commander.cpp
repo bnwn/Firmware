@@ -152,9 +152,6 @@ static constexpr uint8_t COMMANDER_MAX_GPS_NOISE = 60;		/**< Maximum percentage 
 #define HIL_ID_MIN 1000
 #define HIL_ID_MAX 1999
 
-/* pump working pwm */
-#define PUMP_WORKING_PWM 1200
-
 /* Mavlink log uORB handle */
 static orb_advert_t mavlink_log_pub = 0;
 
@@ -2669,7 +2666,12 @@ int commander_thread_main(int argc, char *argv[])
 
         if (updated) {
             orb_copy(ORB_ID(input_rc), input_rc_sub, &rc_input);
-            status.pesticide_spraying = rc_input.values[8] > PUMP_WORKING_PWM ? true : false;
+            if (rc_input.channel_count > 8 && rc_input.values[8] > rc_input.PUMP_WORKING_PWM) {
+            	status.pesticide_spraying = true;
+
+            } else {
+            	status.pesticide_spraying = false;
+            }
         }
 
         orb_check(flowmeter_sub, &updated);
