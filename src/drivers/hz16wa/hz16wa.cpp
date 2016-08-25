@@ -37,6 +37,7 @@ HZ16WA::HZ16WA(const char *path) :
     _pwm{},
     _flowmeter_sensor_topic(nullptr),
     _flowmeter{},
+	_flowrate_arr{},
     _sample_perf(perf_alloc(PC_ELAPSED, "hz16wa_read")),
     _read_errors(perf_alloc(PC_COUNT, "hz16wa_read_errors")),
     _buffer_overflows(perf_alloc(PC_COUNT, "hz16wa_buffer_overflows")),
@@ -172,6 +173,7 @@ void HZ16WA::cycle()
 int HZ16WA::measure()
 {
     static uint64_t begin_times = hrt_absolute_time();
+    _flowmeter.pesticide_remaining = true;
     perf_begin(_sample_perf);
 
     if (OK != collect()) {
@@ -200,11 +202,23 @@ int HZ16WA::measure()
         return reset();
     }
 
+    float max_flowrate = _flowmeter.flowrate;
+    float min_flowrate = _flowmeter.flowrate;
+    float sum_flowrate = _flowmeter.flowrate;
+    /* Sliding filter and Extreme value filter */
+    for (int i=0; i<9; i++) {
+    	_flowrate_arr[i] = _flowrate_arr[i+1];
+    	max_flowrate = _flowrate_arr[i] > max_flowrate ? _flowrate_arr[i] : max_flowrate;
+    	min_flowrate = _flowrate_arr[i] < min_flowrate ? _flowrate_arr[i] : min_flowrate;
+    	sum_flowrate += _flowrate_arr[i];
+    }
+    _flowrate_arr[9] = _flowmeter.flowrate;
+    _flowmeter.flowrate = (sum_flowrate - max_flowrate - min_flowrate) / 8;
+
     if (_flowmeter.flowrate < 0.5f && (_flowmeter.timestamp - begin_times) > HZ16WA_EMPTY_TIMEOUT) {
         _flowmeter.pesticide_remaining = false;
 
     } else if (_flowmeter.flowrate >= 0.5f) {
-        _flowmeter.pesticide_remaining = true;
         begin_times = hrt_absolute_time();
     }
 

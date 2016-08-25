@@ -55,7 +55,6 @@
 
 #include <uORB/uORB.h>
 #include <uORB/topics/pwm_input.h>
-#include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/flowmeter_sensor.h>
 
 #include <board_config.h>
@@ -64,7 +63,6 @@
 #include <cstdlib>
 #include <string.h>
 #include <stdio.h>
-
 
 #define HZ16WA_DEVICE_PATH "/dev/hz16wa"
 
@@ -136,6 +134,7 @@ private:
     struct flowmeter_sensor_s _flowmeter;
     float                   _max_flowrate;
     float                   _min_flowrate;
+    float					_flowrate_arr[10];
 
 	perf_counter_t	        _sample_perf;
 	perf_counter_t	        _read_errors;
