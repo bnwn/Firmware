@@ -1468,6 +1468,7 @@ int commander_thread_main(int argc, char *argv[])
     int input_rc_sub = orb_subscribe(ORB_ID(input_rc));
     struct input_rc_s rc_input;
     memset(&rc_input, 0, sizeof(rc_input));
+    uint64_t begin_spraying_time = hrt_absolute_time();
 
 	/* Subscribe to differential pressure topic */
 	int diff_pres_sub = orb_subscribe(ORB_ID(differential_pressure));
@@ -2667,18 +2668,21 @@ int commander_thread_main(int argc, char *argv[])
         if (updated) {
             orb_copy(ORB_ID(input_rc), input_rc_sub, &rc_input);
             if (rc_input.channel_count > 8 && rc_input.values[8] > rc_input.PUMP_WORKING_PWM) {
-            	status.pesticide_spraying = true;
+                status.pesticide_spraying = true;
 
             } else {
-            	status.pesticide_spraying = false;
+                status.pesticide_spraying = false;
+                begin_spraying_time = hrt_absolute_time();
             }
         }
 
-        orb_check(flowmeter_sub, &updated);
+        if (status.pesticide_spraying && ((status.timestamp - begin_spraying_time) > rc_input.PUMP_SPRAYING_DELAY_TIME)) {
+            orb_check(flowmeter_sub, &updated);
 
-        if (updated && status.pesticide_spraying) {
-            orb_copy(ORB_ID(flowmeter_sensor), flowmeter_sub, &flowmeter);
-            status.pesticide_remaining = flowmeter.pesticide_remaining;
+            if (updated) {
+                orb_copy(ORB_ID(flowmeter_sensor), flowmeter_sub, &flowmeter);
+                status.pesticide_remaining = flowmeter.pesticide_remaining;
+            }
 
         } else {
             status.pesticide_remaining = true;

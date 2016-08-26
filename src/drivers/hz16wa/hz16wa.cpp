@@ -37,8 +37,6 @@ HZ16WA::HZ16WA(const char *path) :
     _pwm{},
     _flowmeter_sensor_topic(nullptr),
     _flowmeter{},
-	_input_rc_sub(-1),
-	_rc{},
 	_flowrate_arr{},
     _sample_perf(perf_alloc(PC_ELAPSED, "hz16wa_read")),
     _read_errors(perf_alloc(PC_COUNT, "hz16wa_read_errors")),
@@ -93,9 +91,6 @@ int HZ16WA::init()
     _reports->get(&fs_report);
     _flowmeter_sensor_topic = orb_advertise_multi(ORB_ID(flowmeter_sensor), &fs_report,
                                                   &_orb_class_instance, ORB_PRIO_DEFAULT);
-
-    /* Subscribe input_rc topic */
-    _input_rc_sub = orb_subscribe(ORB_ID(input_rc));
 
     if (_flowmeter_sensor_topic == nullptr) {
         DEVICE_DEBUG("failed to create flowmeter_sensor. Did you start uORB?");
@@ -167,16 +162,7 @@ float HZ16WA::get_minimum_flowrate() const
 
 void HZ16WA::cycle()
 {
-	bool updated;
-	orb_check(_input_rc_sub, &updated);
-
-	if (updated) {
-		orb_copy(ORB_ID(input_rc), _input_rc_sub, &_rc);
-
-		if (_rc.channel_count > 8 && _rc.values[8] > _rc.PUMP_WORKING_PWM) {
-			measure();
-		}
-	}
+    measure();
 
     /* schedule a fresh cycle call when the measurement is done */
     work_queue(HPWORK, &_work, (worker_t)&HZ16WA::cycle_trampoline, this, _measure_ticks);
@@ -216,14 +202,14 @@ int HZ16WA::measure()
     float min_flowrate = _flowmeter.flowrate;
     float sum_flowrate = _flowmeter.flowrate;
     /* Sliding filter and Extreme value filter */
-    for (int i=0; i<9; i++) {
+    for (int i=0; i<(FILTER_ARR_NUM-1); i++) {
     	_flowrate_arr[i] = _flowrate_arr[i+1];
     	max_flowrate = _flowrate_arr[i] > max_flowrate ? _flowrate_arr[i] : max_flowrate;
     	min_flowrate = _flowrate_arr[i] < min_flowrate ? _flowrate_arr[i] : min_flowrate;
     	sum_flowrate += _flowrate_arr[i];
     }
-    _flowrate_arr[9] = _flowmeter.flowrate;
-    _flowmeter.flowrate = (sum_flowrate - max_flowrate - min_flowrate) / 8;
+    _flowrate_arr[FILTER_ARR_NUM-1] = _flowmeter.flowrate;
+    _flowmeter.flowrate = (sum_flowrate - max_flowrate - min_flowrate) / (FILTER_ARR_NUM - 2);
 
     _flowmeter.timestamp = hrt_absolute_time();
     _flowmeter.max_flowrate = get_maximum_flowrate();
@@ -493,7 +479,7 @@ void stop()
 void test()
 {
     struct flowmeter_sensor_s report;
-    ssize_t sz;
+//    ssize_t sz;
     int ret;
 
     int fd = open(HZ16WA_DEVICE_PATH, O_RDONLY);
@@ -502,26 +488,46 @@ void test()
         errx(1, "%s open failed (try 'hz16wa start' if the driver is not running)", HZ16WA_DEVICE_PATH);
     }
 
-    /* do a simple demand read */
-    sz = read(fd, &report, sizeof(report));
+//    /* do a simple demand read */
+//    sz = read(fd, &report, sizeof(report));
 
-    if (sz != sizeof(report)) {
-        errx(1, "immediate read failed");
-    }
+//    if (sz != sizeof(report)) {
+//        errx(1, "immediate read failed");
+//    }
 
-    warnx("single read");
-    warnx("measurement: %0.3f L/min of flowmeter, PWM: %0.3f Hz", (double) report.flowrate, (double) report.pluse_rate);
-    warnx("time: %lld", report.timestamp);
+//    warnx("single read");
+//    warnx("measurement: %0.3f L/min of flowmeter, PWM: %0.3f Hz", (double) report.flowrate, (double) report.pluse_rate);
+//    warnx("time: %lld", report.timestamp);
 
-    /* start the sensor polling at setting interval(Hz) */
-    if (OK != ioctl(fd, SENSORIOCSPOLLRATE, 20)) {
-        errx(1, "falied to set poll rate!");
-    }
+//    /* start the sensor polling at setting interval(Hz) */
+//    if (OK != ioctl(fd, SENSORIOCSPOLLRATE, 20)) {
+//        errx(1, "falied to set poll rate!");
+//    }
 
+    struct pollfd fdstd;
+
+    fdstd.fd = 0; /* stdin */
+
+    fdstd.events = POLLIN;
+
+    warnx("Press CTRL-C or 'c' to abort.");
     int i = 0;
     /* read the sensor x times and report each value */
     while(1) {
         struct pollfd fds;
+        /* Check if user wants to quit */
+        char c;
+        ret = poll(&fdstd, 1, 0);
+
+        if (ret > 0) {
+
+            read(0, &c, 1);
+
+            if (c == 0x03 || c == 0x63 || c == 'q') {
+                warnx("User abort\n");
+                break;
+            }
+        }
 
         /* wait for data to be ready */
         fds.fd = fd;
@@ -546,7 +552,7 @@ void test()
         /* Print the flowmeter report flowrate and pwm */
         warnx("measurement: %0.3f L/min of flowmeter, PWM: %0.3f Hz", (double) report.flowrate, (double) report.pluse_rate);
         warnx("timeL %lld", report.timestamp);
-        warnx("flowmeter_pesticide_remaining:%d .\n", report.pesticide_remaining);
+        warnx("flowmeter_pesticide_remaining:%d .", report.pesticide_remaining);
     }
 
     /* reset the sensor polling to default rate */

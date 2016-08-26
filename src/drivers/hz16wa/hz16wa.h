@@ -56,7 +56,6 @@
 #include <uORB/uORB.h>
 #include <uORB/topics/pwm_input.h>
 #include <uORB/topics/flowmeter_sensor.h>
-#include <uORB/topics/input_rc.h>
 
 #include <board_config.h>
 #include <systemlib/err.h>
@@ -74,7 +73,8 @@
 /* default conversion wait time */
 #define HZ16WA_CONVERSION_INTERVAL 50*1000UL /* 50ms */
 
-#define HZ16WA_EMPTY_TIMEOUT       8000*1000UL /* 8s */
+#define HZ16WA_EMPTY_TIMEOUT       500*1000UL /* 0.5s */
+#define FILTER_ARR_NUM             6
 
 /* maximun time to wait for a conversion to complete */
 #define HZ16WA_CONVERSION_TIMEOUT  1000*1000UL /* 1s */
@@ -133,11 +133,9 @@ private:
     struct pwm_input_s	_pwm;
     orb_advert_t	        _flowmeter_sensor_topic;
     struct flowmeter_sensor_s _flowmeter;
-    int						_input_rc_sub;
-    struct input_rc_s       _rc;
     float                   _max_flowrate;
     float                   _min_flowrate;
-    float					_flowrate_arr[10];
+    float					_flowrate_arr[7]; /* FILTER_ARR_NUM + 1 */
 
 	perf_counter_t	        _sample_perf;
 	perf_counter_t	        _read_errors;
