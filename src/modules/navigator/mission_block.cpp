@@ -69,6 +69,7 @@ MissionBlock::MissionBlock(Navigator *navigator, const char *name) :
 	_mission_item({0}),
 	_waypoint_position_reached(false),
 	_waypoint_yaw_reached(false),
+    _starting_point_reached(false),
 	_time_first_inside_orbit(0),
 	_action_start(0),
 	_time_wp_reached(0),
@@ -329,7 +330,7 @@ void
 MissionBlock::reset_mission_item_reached()
 {
 	_waypoint_position_reached = false;
-	_waypoint_yaw_reached = false;
+    _waypoint_yaw_reached = false;
 	_time_first_inside_orbit = 0;
 	_time_wp_reached = 0;
 }

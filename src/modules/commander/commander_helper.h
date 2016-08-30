@@ -77,4 +77,6 @@ void rgbled_set_color(rgbled_color_t color);
 void rgbled_set_mode(rgbled_mode_t mode);
 void rgbled_set_pattern(rgbled_pattern_t *pattern);
 
+void get_pump_status(unsigned long *arg);
+
 #endif /* COMMANDER_HELPER_H_ */

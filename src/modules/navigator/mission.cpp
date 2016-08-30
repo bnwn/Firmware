@@ -46,11 +46,17 @@
 
 #include <sys/types.h>
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <float.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include <drivers/drv_hrt.h>
+#include <drivers/drv_gpio.h>
+#include <drivers/drv_pwm_output.h>
 
 #include <dataman/dataman.h>
 #include <systemlib/mavlink_log.h>
@@ -101,10 +107,15 @@ Mission::~Mission()
 void
 Mission::on_inactive()
 {
+    /* stop pump when is not mission mode */
+    stop_pump();
 	/* Without home a mission can't be valid yet anyway, let's wait. */
 	if (!_navigator->home_position_valid()) {
 		return;
 	}
+
+    /* Reset first point to not arried */
+    _starting_point_reached = false;
 
 	if (_inited) {
 		/* check if missions have changed so that feedback to ground station is given */
@@ -205,6 +216,11 @@ Mission::on_active()
 	/* lets check if we reached the current mission item */
 	if (_mission_type != MISSION_TYPE_NONE && is_mission_item_reached()) {
 		set_mission_item_reached();
+
+        if (!_starting_point_reached) {
+            _starting_point_reached = true;
+            start_pump();
+        }
 
 		if (_mission_item.autocontinue) {
 			/* switch to next waypoint if 'autocontinue' flag set */
@@ -1313,4 +1329,37 @@ Mission::need_to_reset_mission(bool active)
 	}
 
 	return false;
+}
+
+
+void
+Mission::start_pump()
+{
+    int fd = open(PX4FMU_DEVICE_PATH, O_RDONLY);
+
+    if (fd < 0) {
+        errx(1, "open failed.");
+    }
+
+    if (ioctl(fd, PWM_SERVO_SET(3), 2000) < 0) {
+        warnx("fail to set servo AUX4.");
+    }
+
+    close(fd);
+}
+
+void
+Mission::stop_pump()
+{
+    int fd = open(PX4FMU_DEVICE_PATH, O_RDONLY);
+
+    if (fd < 0) {
+        errx(1, "open failed.");
+    }
+
+    if (ioctl(fd, PWM_SERVO_SET(3), 0) < 0) {
+        warnx("fail to reset servo AUX4.");
+    }
+
+    close(fd);
 }

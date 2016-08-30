@@ -152,6 +152,8 @@ static constexpr uint8_t COMMANDER_MAX_GPS_NOISE = 60;		/**< Maximum percentage 
 #define HIL_ID_MIN 1000
 #define HIL_ID_MAX 1999
 
+#define PUMP_SPRAYING_DELAY_TIME 10000000
+
 /* Mavlink log uORB handle */
 static orb_advert_t mavlink_log_pub = 0;
 
@@ -1464,10 +1466,12 @@ int commander_thread_main(int argc, char *argv[])
     struct flowmeter_sensor_s flowmeter;
     memset(&flowmeter, 0, sizeof(flowmeter));
 
+#ifdef CONTROL_PUMP_MANNUL
     /* Subscribe to input_rc topic */
     int input_rc_sub = orb_subscribe(ORB_ID(input_rc));
     struct input_rc_s rc_input;
     memset(&rc_input, 0, sizeof(rc_input));
+#endif
     uint64_t begin_spraying_time = hrt_absolute_time();
 
 	/* Subscribe to differential pressure topic */
@@ -2662,6 +2666,7 @@ int commander_thread_main(int argc, char *argv[])
 			}
 		}
 
+#ifdef CONTROL_PUMP_MANNUL
         /* check rc input channel 9 */
         orb_check(input_rc_sub, &updated);
 
@@ -2675,8 +2680,20 @@ int commander_thread_main(int argc, char *argv[])
                 begin_spraying_time = hrt_absolute_time();
             }
         }
+#endif
+        unsigned long pump_output;
+        /* get pump status */
+        get_pump_status(&pump_output);
 
-        if (status.pesticide_spraying && ((status.timestamp - begin_spraying_time) > rc_input.PUMP_SPRAYING_DELAY_TIME)) {
+        if (pump_output > 0) {
+            status.pesticide_spraying = true;
+
+        } else {
+            status.pesticide_spraying = false;
+            begin_spraying_time = hrt_absolute_time();
+        }
+
+        if (status.pesticide_spraying && ((status.timestamp - begin_spraying_time) > PUMP_SPRAYING_DELAY_TIME)) {
             orb_check(flowmeter_sub, &updated);
 
             if (updated) {

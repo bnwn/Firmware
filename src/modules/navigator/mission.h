@@ -229,6 +229,16 @@ private:
 	 */
 	bool need_to_reset_mission(bool active);
 
+    /**
+     * Set pwm_output AUX4 to driver the pump
+     */
+    void start_pump();
+
+    /**
+     * Reset pwm_output AUX4 to stop the pump
+     */
+    void stop_pump();
+
 	control::BlockParamInt _param_onboard_enabled;
 	control::BlockParamFloat _param_takeoff_alt;
 	control::BlockParamFloat _param_dist_1wp;

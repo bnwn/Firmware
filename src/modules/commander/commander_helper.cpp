@@ -61,6 +61,8 @@
 #include <drivers/drv_tone_alarm.h>
 #include <drivers/drv_led.h>
 #include <drivers/drv_rgbled.h>
+#include <drivers/drv_pwm_output.h>
+#include <drivers/drv_gpio.h>
 
 #include "commander_helper.h"
 #include "DevMgr.hpp"
@@ -342,4 +344,19 @@ void rgbled_set_pattern(rgbled_pattern_t *pattern)
 {
 
 	h_rgbleds.ioctl(RGBLED_SET_PATTERN, (unsigned long)pattern);
+}
+
+void get_pump_status(unsigned long *arg)
+{
+    int fd = open(PX4FMU_DEVICE_PATH, O_RDONLY);
+
+    if (fd < 0) {
+        errx(1, "open failed.");
+    }
+
+    if (ioctl(fd, PWM_SERVO_GET(3), *arg) < 0) {
+        warnx("fail to get pump status.");
+    }
+
+    close(fd);
 }
