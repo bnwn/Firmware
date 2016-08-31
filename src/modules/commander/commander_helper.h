@@ -48,7 +48,6 @@
 #include <uORB/topics/vehicle_control_mode.h>
 #include <drivers/drv_rgbled.h>
 
-
 bool is_multirotor(const struct vehicle_status_s *current_status);
 bool is_rotary_wing(const struct vehicle_status_s *current_status);
 bool is_vtol(const struct vehicle_status_s *current_status);
@@ -77,6 +76,6 @@ void rgbled_set_color(rgbled_color_t color);
 void rgbled_set_mode(rgbled_mode_t mode);
 void rgbled_set_pattern(rgbled_pattern_t *pattern);
 
-void get_pump_status(unsigned long *arg);
+unsigned long get_pump_status();
 
 #endif /* COMMANDER_HELPER_H_ */

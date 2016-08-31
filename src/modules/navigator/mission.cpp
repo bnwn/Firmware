@@ -112,7 +112,7 @@ Mission::on_inactive()
 	/* Without home a mission can't be valid yet anyway, let's wait. */
 	if (!_navigator->home_position_valid()) {
 		return;
-	}
+    }
 
     /* Reset first point to not arried */
     _starting_point_reached = false;
@@ -1335,31 +1335,11 @@ Mission::need_to_reset_mission(bool active)
 void
 Mission::start_pump()
 {
-    int fd = open(PX4FMU_DEVICE_PATH, O_RDONLY);
-
-    if (fd < 0) {
-        errx(1, "open failed.");
-    }
-
-    if (ioctl(fd, PWM_SERVO_SET(3), 2000) < 0) {
-        warnx("fail to set servo AUX4.");
-    }
-
-    close(fd);
+    up_pwm_servo_set(3, 2000);
 }
 
 void
 Mission::stop_pump()
 {
-    int fd = open(PX4FMU_DEVICE_PATH, O_RDONLY);
-
-    if (fd < 0) {
-        errx(1, "open failed.");
-    }
-
-    if (ioctl(fd, PWM_SERVO_SET(3), 0) < 0) {
-        warnx("fail to reset servo AUX4.");
-    }
-
-    close(fd);
+    up_pwm_servo_set(3, 1000);
 }

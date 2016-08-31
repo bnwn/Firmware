@@ -86,7 +86,7 @@
 #include <uORB/topics/safety.h>
 #include <uORB/topics/adc_report.h>
 #include <uORB/topics/input_rc.h>
-
+#include <commander/commander_helper.h>
 
 #ifdef HRT_PPM_CHANNEL
 # include <systemlib/ppm_decode.h>
@@ -901,7 +901,7 @@ PX4FMU::update_pwm_out_state(bool on)
 	if (on && !_pwm_initialized && _pwm_mask != 0) {
 		up_pwm_servo_init(_pwm_mask);
 		set_pwm_rate(_pwm_alt_rate_channels, _pwm_default_rate, _pwm_alt_rate);
-		_pwm_initialized = true;
+        _pwm_initialized = true;
 	}
 
 	up_pwm_servo_arm(on);

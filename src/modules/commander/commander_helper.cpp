@@ -346,17 +346,11 @@ void rgbled_set_pattern(rgbled_pattern_t *pattern)
 	h_rgbleds.ioctl(RGBLED_SET_PATTERN, (unsigned long)pattern);
 }
 
-void get_pump_status(unsigned long *arg)
+unsigned long get_pump_status()
 {
-    int fd = open(PX4FMU_DEVICE_PATH, O_RDONLY);
-
-    if (fd < 0) {
-        errx(1, "open failed.");
+    unsigned long pump_pwm = (unsigned long) up_pwm_servo_get(3);
+    if (pump_pwm > 2100) {
+        pump_pwm = 0;
     }
-
-    if (ioctl(fd, PWM_SERVO_GET(3), *arg) < 0) {
-        warnx("fail to get pump status.");
-    }
-
-    close(fd);
+    return pump_pwm;
 }
