@@ -1171,7 +1171,8 @@ int commander_thread_main(int argc, char *argv[])
 	bool was_armed = false;
 
 	bool startup_in_hil = false;
-
+    /* save break point once */
+    bool break_point_set_up = false;
 	// XXX for now just set sensors as initialized
 	status_flags.condition_system_sensors_initialized = true;
 
@@ -2714,7 +2715,8 @@ int commander_thread_main(int argc, char *argv[])
             main_state_transition(&status, commander_state_s::MAIN_STATE_AUTO_RTL, main_state_prev, &status_flags, &internal_state);
 
             /* save current local position if previous flight mode is mission */
-            if (main_state_prev == commander_state_s::MAIN_STATE_AUTO_MISSION) {
+            if (main_state_prev == commander_state_s::MAIN_STATE_AUTO_MISSION && !break_point_set_up) {
+                dm_lock(DM_KEY_MISSION_STATE);
                 if (dm_read(DM_KEY_MISSION_STATE, 0, &mission, sizeof(mission_s)) == sizeof(mission_s)) {
                     if (mission.dataman_id >= 0 && mission.dataman_id <= 1) {
                         if (mission.count > 0) {
@@ -2772,6 +2774,7 @@ int commander_thread_main(int argc, char *argv[])
                                 /* set mission count if all item write successful */
                                 if (offset >= (mission.count - mission.current_seq)) {
                                     mission.count = mission.count - mission.current_seq;
+                                    break_point_set_up = true;
                                 }
 
                             } else {
@@ -2799,6 +2802,7 @@ int commander_thread_main(int argc, char *argv[])
                     mission_pub = orb_advertise(ORB_ID(offboard_mission), &mission);
                     orb_publish(ORB_ID(offboard_mission), mission_pub, &mission);
                 }
+                dm_unlock(DM_KEY_MISSION_STATE);
             }
 
         } else {
@@ -2816,6 +2820,9 @@ int commander_thread_main(int argc, char *argv[])
                     status_changed = true;
                 }
             }
+
+            /* reset break point set up flag */
+            break_point_set_up = false;
         }
 
 
