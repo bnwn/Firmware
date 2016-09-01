@@ -2739,6 +2739,7 @@ int commander_thread_main(int argc, char *argv[])
                                     mission_item_tmp.lat = global_position.lat;
                                     mission_item_tmp.lon = global_position.lon;
                                     mission_item_tmp.altitude = global_position.alt;
+                                    mission_item_tmp.altitude_is_relative = false;
                                     mission_item_tmp.time_inside = 5.0f;
                                 }
 
