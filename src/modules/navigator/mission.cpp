@@ -55,8 +55,6 @@
 #include <fcntl.h>
 
 #include <drivers/drv_hrt.h>
-#include <drivers/drv_gpio.h>
-#include <drivers/drv_pwm_output.h>
 
 #include <dataman/dataman.h>
 #include <systemlib/mavlink_log.h>
@@ -217,12 +215,7 @@ Mission::on_active()
 
 	/* lets check if we reached the current mission item */
 	if (_mission_type != MISSION_TYPE_NONE && is_mission_item_reached()) {
-		set_mission_item_reached();
-
-        if (!_starting_point_reached) {
-            _starting_point_reached = true;
-            start_pump();
-        }
+        set_mission_item_reached();
 
 		if (_mission_item.autocontinue) {
 			/* switch to next waypoint if 'autocontinue' flag set */
@@ -1331,17 +1324,4 @@ Mission::need_to_reset_mission(bool active)
 	}
 
 	return false;
-}
-
-
-void
-Mission::start_pump()
-{
-    up_pwm_servo_set(3, 2000);
-}
-
-void
-Mission::stop_pump()
-{
-    up_pwm_servo_set(3, 1000);
 }

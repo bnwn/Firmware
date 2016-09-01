@@ -52,6 +52,9 @@
 #include <systemlib/mavlink_log.h>
 #include <mathlib/mathlib.h>
 
+#include <drivers/drv_gpio.h>
+#include <drivers/drv_pwm_output.h>
+
 #include <uORB/uORB.h>
 #include <uORB/topics/actuator_controls.h>
 #include <uORB/topics/vehicle_command.h>
@@ -301,6 +304,11 @@ MissionBlock::is_mission_item_reached()
 		if (_time_first_inside_orbit == 0) {
 			_time_first_inside_orbit = now;
 		}
+
+        if (!_starting_point_reached) {
+            _starting_point_reached = true;
+            start_pump();
+        }
 
 		/* check if the MAV was long enough inside the waypoint orbit */
 		if (now - _time_first_inside_orbit >= (hrt_abstime)_mission_item.time_inside * 1e6f) {
@@ -682,3 +690,16 @@ MissionBlock::set_idle_item(struct mission_item_s *item)
 	item->autocontinue = true;
 	item->origin = ORIGIN_ONBOARD;
 }
+
+void
+MissionBlock::start_pump()
+{
+    up_pwm_servo_set(3, 2000);
+}
+
+void
+MissionBlock::stop_pump()
+{
+    up_pwm_servo_set(3, 1000);
+}
+
