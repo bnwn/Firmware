@@ -54,7 +54,7 @@ __BEGIN_DECLS
 /**
  * Use RC channel 9 to control pump.
  */
-#define CONTROL_PUMP_THROUGH_RC
+//#define CONTROL_PUMP_THROUGH_RC
 
 /**
  * Path for the default PWM output device.

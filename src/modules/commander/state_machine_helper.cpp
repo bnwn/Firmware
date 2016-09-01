@@ -432,6 +432,8 @@ main_state_transition(struct vehicle_status_s *status, main_state_t new_main_sta
 		break;
 	}
 
+//    /* break piont test */
+//    ret = TRANSITION_CHANGED;
 	if (ret == TRANSITION_CHANGED) {
 		if (internal_state->main_state != new_main_state) {
 			main_state_prev = internal_state->main_state;

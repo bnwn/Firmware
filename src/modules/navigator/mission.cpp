@@ -109,6 +109,7 @@ Mission::on_inactive()
 {
     /* stop pump when is not mission mode */
     stop_pump();
+
 	/* Without home a mission can't be valid yet anyway, let's wait. */
 	if (!_navigator->home_position_valid()) {
 		return;
@@ -178,6 +179,7 @@ Mission::on_inactive()
 void
 Mission::on_activation()
 {
+//    start_pump();
 	set_mission_items();
 }
 

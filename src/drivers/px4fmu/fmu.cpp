@@ -1113,9 +1113,9 @@ PX4FMU::cycle()
 #endif
 	}
 
+bool updated = false;
 #ifdef CONTROL_PUMP_THROUGH_RC
     /* set AUX6 to control pump, cannot not use mix.*/
-    bool updated = false;
     orb_check(_rc_input_sub, &updated);
 
     if (updated) {

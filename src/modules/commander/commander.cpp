@@ -152,7 +152,8 @@ static constexpr uint8_t COMMANDER_MAX_GPS_NOISE = 60;		/**< Maximum percentage 
 #define HIL_ID_MIN 1000
 #define HIL_ID_MAX 1999
 
-#define PUMP_SPRAYING_DELAY_TIME 10000000
+#define PUMP_SPRAYING_DELAY_TIME 5*1000*1000
+uint64_t begin_spraying_time = hrt_absolute_time();
 
 /* Mavlink log uORB handle */
 static orb_advert_t mavlink_log_pub = 0;
@@ -1475,7 +1476,6 @@ int commander_thread_main(int argc, char *argv[])
     struct input_rc_s rc_input;
     memset(&rc_input, 0, sizeof(rc_input));
 #endif
-    uint64_t begin_spraying_time = hrt_absolute_time();
 
 	/* Subscribe to differential pressure topic */
 	int diff_pres_sub = orb_subscribe(ORB_ID(differential_pressure));
@@ -2687,26 +2687,21 @@ int commander_thread_main(int argc, char *argv[])
         unsigned long pump_output;
         /* get pump status */
         pump_output = get_pump_status();
+        status.pesticide_spraying = (pump_output > 1500) ? true : false;
 
-        if (pump_output > 1500) {
-            status.pesticide_spraying = true;
+        if (status.pesticide_spraying) {
+            if (hrt_absolute_time() - begin_spraying_time > PUMP_SPRAYING_DELAY_TIME) {
+                orb_check(flowmeter_sub, &updated);
 
-        } else {
-            status.pesticide_spraying = false;
-            begin_spraying_time = hrt_absolute_time();
-        }
-
-//        if (status.pesticide_spraying && ((status.timestamp - begin_spraying_time) > PUMP_SPRAYING_DELAY_TIME)) {
-        if (status.pesticide_spraying && begin_spraying_time) {
-            orb_check(flowmeter_sub, &updated);
-
-            if (updated) {
-                orb_copy(ORB_ID(flowmeter_sensor), flowmeter_sub, &flowmeter);
-                status.pesticide_remaining = flowmeter.pesticide_remaining;
+                if (updated) {
+                    orb_copy(ORB_ID(flowmeter_sensor), flowmeter_sub, &flowmeter);
+                    status.pesticide_remaining = flowmeter.pesticide_remaining;
+                }
             }
 
         } else {
             status.pesticide_remaining = true;
+            begin_spraying_time = hrt_absolute_time();
         }
 
         /* if pesticide is not remaining,return home */
@@ -2722,71 +2717,72 @@ int commander_thread_main(int argc, char *argv[])
                         if (mission.count > 0) {
                             struct mission_item_s mission_item_tmp;
                             const ssize_t len = sizeof(struct mission_item_s);
-                            float takeoff_params[7];
                             /* offboard mission */
                             dm_item_t dm_item;
                             dm_item = DM_KEY_WAYPOINTS_OFFBOARD(mission.dataman_id);
 
-                            if (dm_read(dm_item, 0, &mission_item_tmp,len) == len) {
-                                for (int i=0; i<7; i++) {
-                                    takeoff_params[i] = mission_item_tmp.params[i];
+                            int offset = 1;
+                            const int new_count = mission.count - mission.current_seq;
+                            for (; offset<=new_count; offset++) {
+                                /* read mission item from datamanager */
+                                if (dm_read(dm_item, mission.current_seq-1+offset, &mission_item_tmp,len) != len) {
+                                    /* not supposed to happen unless the datamanager can not access the SD card */
+                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point1");
+                                    mission.dataman_id = 0;
+                                    mission.count = 0;
+                                    break;
                                 }
 
-                                int offset;
-                                const int new_count = mission.count - mission.current_seq;
-                                for (offset=0; offset<new_count; offset++) {
-                                    /* read mission item from datamanager */
-                                    if (dm_read(dm_item, mission.current_seq-1+offset, &mission_item_tmp,len) != len) {
-                                        /* not supposed to happen unless the datamanager can not access the SD card */
-                                        mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point");
-                                        mission.dataman_id = 0;
-                                        mission.count = 0;
-                                        break;
-                                    }
-
-                                    /* first point command set as takeoff */
-                                    if (0 == offset) {
-                                        mission_item_tmp.nav_cmd = NAV_CMD_TAKEOFF;
-                                        mission_item_tmp.altitude = global_position.alt;
-                                        mission_item_tmp.lat = global_position.lat;
-                                        mission_item_tmp.lon = global_position.lon;
-
-                                        for (int i=0; i<7; i++) {
-                                            mission_item_tmp.params[i] = takeoff_params[i];
-                                        }
-                                    }
-
-                                    /* next waypoint is't follow this one which is the last waypoint */
-                                    if ((new_count - 1) == offset) {
-                                        mission_item_tmp.autocontinue = false;
-                                    }
-
-                                    /* save item from sequence head */
-                                    if (dm_write(dm_item, offset, DM_PERSIST_POWER_ON_RESET, &mission_item_tmp, len) != len) {
-                                        /* not supposed to happen unless the datamanager can not access the SD card */
-                                        mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point");
-                                        mission.dataman_id = 0;
-                                        mission.count = 0;
-                                        break;
-                                    }
+                                /* first point command set as takeoff */
+                                if (1 == offset) {
+                                    mission_item_tmp.nav_cmd = NAV_CMD::NAV_CMD_WAYPOINT;
+                                    mission_item_tmp.lat = global_position.lat;
+                                    mission_item_tmp.lon = global_position.lon;
+                                    mission_item_tmp.altitude = global_position.alt;
+                                    mission_item_tmp.time_inside = 5.0f;
                                 }
 
-                                /* set mission count if all item write successful */
-                                if (offset >= (mission.count - mission.current_seq)) {
-                                    mission.count = mission.count - mission.current_seq;
-                                    break_point_set_up = true;
+                                /* next waypoint is't follow this one which is the last waypoint */
+                                if (new_count == offset) {
+                                    mission_item_tmp.autocontinue = false;
                                 }
 
-                            } else {
-                                /* not supposed to happen unless the datamanager can not access the SD card */
-                                mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point");
-                                mission.dataman_id = 0;
-                                mission.count = 0;
+                                /* save item from sequence head */
+                                if (dm_write(dm_item, offset-1, DM_PERSIST_POWER_ON_RESET, &mission_item_tmp, len) != len) {
+                                    /* not supposed to happen unless the datamanager can not access the SD card */
+                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point2");
+                                    mission.dataman_id = 0;
+                                    mission.count = 0;
+                                    break;
+                                }
+                            }
+
+                            for (int i=0; i<7; i++) {
+                                mission_item_tmp.params[i] = 0.0f;
+                            }
+                            mission_item_tmp.nav_cmd = NAV_CMD::NAV_CMD_IDLE;
+
+                            /* set remaining point as IDLE */
+                            for (int i=offset; i<mission.count; i++) {
+                                /* save item from sequence head */
+                                if (dm_write(dm_item, offset, DM_PERSIST_POWER_ON_RESET, &mission_item_tmp, len) != len) {
+                                    /* not supposed to happen unless the datamanager can not access the SD card */
+                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point2");
+                                    mission.dataman_id = 0;
+                                    mission.count = 0;
+                                    break;
+                                }
+                            }
+
+                            /* set mission count if all item write successful */
+                            if (offset > (mission.count - mission.current_seq)) {
+                                mission.count = mission.count - mission.current_seq;
+                                break_point_set_up = true;
                             }
                         }
 
                     } else {
-                        const char *missionfail = "reading mission state failed when save break point";
+                        const char *missionfail = "reading mission state failed when save break point4";
                         warnx("%s", missionfail);
                         mavlink_log_critical(&mavlink_log_pub, missionfail);
 
