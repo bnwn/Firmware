@@ -45,7 +45,6 @@
 #include "drv_orb_dev.h"
 
 #define FLOWMETER_BASE_DEVICE_PATH	"/dev/flowmeter"
-#define FLOWMETER0_DEVICE_PATH          "/dev/flowmeter0"
 
 /* Flowmeter conversion multiple */
 /* #define FLOWMETER_HZ16WA */

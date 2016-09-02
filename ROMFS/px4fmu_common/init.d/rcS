@@ -891,7 +891,7 @@ then
 	# reset pwm_input setting
 	if param compare SENS_EN_HZ16WA 1
 	then
- 		if pwm_input reset
+		if pwm_input reset
 		then
 		fi
 	fi

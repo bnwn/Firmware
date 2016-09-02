@@ -420,7 +420,7 @@ registers_set(uint8_t page, uint8_t offset, const uint16_t *values, unsigned num
 			} else {
 				/* enable PWM output always */
 				r_setup_arming |= PX4IO_P_SETUP_ARMING_ALWAYS_PWM_ENABLE;
-			}
+            }
 		}
 		break;
 
