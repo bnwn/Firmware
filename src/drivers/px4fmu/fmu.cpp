@@ -194,7 +194,6 @@ private:
 	bool		_analog_rc_rssi_stable;
 	orb_advert_t	_to_input_rc;
     orb_advert_t	_outputs_pub;
-    bool            _pesticide_spraying;
 	unsigned	_num_outputs;
 	int		_class_instance;
 	int		_rcs_fd;
@@ -319,7 +318,6 @@ PX4FMU::PX4FMU() :
 	_analog_rc_rssi_stable(false),
 	_to_input_rc(nullptr),
     _outputs_pub(nullptr),
-    _pesticide_spraying(false),
 	_num_outputs(0),
 	_class_instance(0),
 	_rcs_fd(-1),
@@ -1113,26 +1111,33 @@ PX4FMU::cycle()
 #endif
 	}
 
-bool updated = false;
-#ifdef CONTROL_PUMP_THROUGH_RC
-    /* set AUX6 to control pump, cannot not use mix.*/
-    orb_check(_rc_input_sub, &updated);
+    bool updated = false;
+
+    orb_check(_vehicle_status_sub, &updated);
 
     if (updated) {
-        orb_copy(ORB_ID(input_rc), _rc_input_sub, &_rc_in);
-        if (_rc_in.channel_count > 8) {
-            _pump_pwm =_rc_in.values[8];
-            pwm_output_set(3, _pump_pwm);
+        orb_copy(ORB_ID(vehicle_status), _vehicle_status_sub, &_vehicle_status);
+    }
 
-        } else {
+    if (_vehicle_status.nav_state != vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION && _vehicle_status.nav_state != vehicle_status_s::NAVIGATION_STATE_AUTO_RTL) {
+        /* set AUX4 to control pump, cannot not use mix */
+        orb_check(_rc_input_sub, &updated);
 
-            DEVICE_LOG("rc not exist channel 9.");
+        if (updated) {
+            orb_copy(ORB_ID(input_rc), _rc_input_sub, &_rc_in);
+            if (_rc_in.channel_count > 8) {
+                _pump_pwm =_rc_in.values[8];
+                pwm_output_set(3, _pump_pwm);
+
+            } else {
+
+                DEVICE_LOG("rc not exist channel 9.");
+            }
         }
     }
 
 	_cycle_timestamp = hrt_absolute_time();
-#else
-#endif
+
 
 #ifdef GPIO_BTN_SAFETY
 

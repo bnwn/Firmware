@@ -208,12 +208,12 @@ transition_result_t arming_state_transition(struct vehicle_status_s *status,
 
 						// Fail transition if we need safety switch press
 
-					} else if (safety->safety_switch_available && !safety->safety_off) {
+                    } else if (safety->safety_switch_available && !safety->safety_off) {
 
 						mavlink_and_console_log_critical(mavlink_log_pub, "NOT ARMING: Press safety switch first!");
-						feedback_provided = true;
+						feedback_provided = true;   
 						valid_transition = false;
-					}
+                    }
 
 					// Perform power checks only if circuit breaker is not
 					// engaged for these checks
@@ -406,7 +406,7 @@ main_state_transition(struct vehicle_status_s *status, main_state_t new_main_sta
 		break;
 
 	case commander_state_s::MAIN_STATE_AUTO_FOLLOW_TARGET:
-	case commander_state_s::MAIN_STATE_AUTO_MISSION:
+    case commander_state_s::MAIN_STATE_AUTO_MISSION:
 	case commander_state_s::MAIN_STATE_AUTO_RTL:
 	case commander_state_s::MAIN_STATE_AUTO_TAKEOFF:
 	case commander_state_s::MAIN_STATE_AUTO_LAND:

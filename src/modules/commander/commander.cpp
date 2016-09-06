@@ -1470,6 +1470,15 @@ int commander_thread_main(int argc, char *argv[])
     struct flowmeter_sensor_s flowmeter;
     memset(&flowmeter, 0, sizeof(flowmeter));
 
+    int32_t farming_mission_mode = 0;
+    param_t farming_param = param_find("FARMING_MISSION");
+
+    if (farming_param != PARAM_INVALID) {
+
+        param_get(farming_param, &farming_mission_mode);
+    }
+
+
 #ifdef CONTROL_PUMP_MANNUL
     /* Subscribe to input_rc topic */
     int input_rc_sub = orb_subscribe(ORB_ID(input_rc));
@@ -2411,14 +2420,14 @@ int commander_thread_main(int argc, char *argv[])
 
 			/* check if left stick is in lower left position and we are in MANUAL, Rattitude, or AUTO_READY mode or (ASSIST mode and landed) -> disarm
 			 * do it only for rotary wings in manual mode or fixed wing if landed */
-			if ((status.is_rotary_wing || (!status.is_rotary_wing && land_detector.landed)) && status.rc_input_mode != vehicle_status_s::RC_IN_MODE_OFF &&
+            if ((status.is_rotary_wing || (!status.is_rotary_wing && land_detector.landed)) && status.rc_input_mode != vehicle_status_s::RC_IN_MODE_OFF &&
 			    (status.arming_state == vehicle_status_s::ARMING_STATE_ARMED || status.arming_state == vehicle_status_s::ARMING_STATE_ARMED_ERROR) &&
 			    (internal_state.main_state == commander_state_s::MAIN_STATE_MANUAL ||
 			    	internal_state.main_state == commander_state_s::MAIN_STATE_ACRO ||
 			    	internal_state.main_state == commander_state_s::MAIN_STATE_STAB ||
 			    	internal_state.main_state == commander_state_s::MAIN_STATE_RATTITUDE ||
 			    	land_detector.landed) &&
-			    sp_man.r < -STICK_ON_OFF_LIMIT && sp_man.z < 0.1f) {
+                sp_man.r < -STICK_ON_OFF_LIMIT && sp_man.z < 0.1f) {
 
 				if (stick_off_counter > rc_arm_hyst) {
 					/* disarm to STANDBY if ARMED or to STANDBY_ERROR if ARMED_ERROR */
@@ -2684,24 +2693,27 @@ int commander_thread_main(int argc, char *argv[])
             }
         }
 #endif
-        unsigned long pump_output;
-        /* get pump status */
-        pump_output = get_pump_status();
-        status.pesticide_spraying = (pump_output > 1500) ? true : false;
 
-        if (status.pesticide_spraying) {
-            if (hrt_absolute_time() - begin_spraying_time > PUMP_SPRAYING_DELAY_TIME) {
-                orb_check(flowmeter_sub, &updated);
+        if (1 == farming_mission_mode) {
+            unsigned long pump_output;
+            /* get pump status */
+            pump_output = get_pump_status();
+            status.pesticide_spraying = (pump_output > 1500) ? true : false;
 
-                if (updated) {
-                    orb_copy(ORB_ID(flowmeter_sensor), flowmeter_sub, &flowmeter);
-                    status.pesticide_remaining = flowmeter.pesticide_remaining;
+            if (status.pesticide_spraying) {
+                if (hrt_absolute_time() - begin_spraying_time > PUMP_SPRAYING_DELAY_TIME) {
+                    orb_check(flowmeter_sub, &updated);
+
+                    if (updated) {
+                        orb_copy(ORB_ID(flowmeter_sensor), flowmeter_sub, &flowmeter);
+                        status.pesticide_remaining = flowmeter.pesticide_remaining;
+                    }
                 }
-            }
 
-        } else {
-            status.pesticide_remaining = true;
-            begin_spraying_time = hrt_absolute_time();
+            } else {
+                status.pesticide_remaining = true;
+                begin_spraying_time = hrt_absolute_time();
+            }
         }
 
         /* if pesticide is not remaining,return home */
