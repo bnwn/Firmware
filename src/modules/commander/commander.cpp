@@ -2716,8 +2716,8 @@ int commander_thread_main(int argc, char *argv[])
             }
         }
 
-        /* if pesticide is not remaining,return home */
-        if (!status.pesticide_remaining && status.pesticide_spraying) {
+        /* return home if pesticide is not remaining when vehicle status is MISSION */
+        if (!status.pesticide_remaining && status.pesticide_spraying && status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION) {
             /* return */
             main_state_transition(&status, commander_state_s::MAIN_STATE_AUTO_RTL, main_state_prev, &status_flags, &internal_state);
 
