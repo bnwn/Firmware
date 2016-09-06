@@ -354,3 +354,8 @@ unsigned long get_pump_status()
     }
     return pump_pwm;
 }
+
+void stop_pump()
+{
+    up_pwm_servo_set(3, 1000);
+}
