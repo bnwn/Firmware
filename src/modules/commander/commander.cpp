@@ -2717,15 +2717,16 @@ int commander_thread_main(int argc, char *argv[])
         }
 
         /* return home if pesticide is not remaining (when vehicle status is MISSION) */
-        if (!status.pesticide_remaining && status.pesticide_spraying) {
+        if (!status.pesticide_remaining && status.pesticide_spraying && status.nav_state != commander_state_s::MAIN_STATE_AUTO_RTL) {
             /* return */
             main_state_transition(&status, commander_state_s::MAIN_STATE_AUTO_RTL, main_state_prev, &status_flags, &internal_state);
 
             /* stop the pump if pesticide is not remaining */
             //stop_pump();
 
-            /* save current local position if previous flight mode is mission */
-            if (main_state_prev == commander_state_s::MAIN_STATE_AUTO_MISSION && !break_point_set_up) {
+            /* save current local position*/
+            //if (main_state_prev == commander_state_s::MAIN_STATE_AUTO_MISSION && !break_point_set_up) {
+            if (!break_point_set_up) {
                 dm_lock(DM_KEY_MISSION_STATE);
                 if (dm_read(DM_KEY_MISSION_STATE, 0, &mission, sizeof(mission_s)) == sizeof(mission_s)) {
                     if (mission.dataman_id >= 0 && mission.dataman_id <= 1) {
@@ -2753,8 +2754,8 @@ int commander_thread_main(int argc, char *argv[])
                                     mission_item_tmp.nav_cmd = NAV_CMD::NAV_CMD_WAYPOINT;
                                     mission_item_tmp.lat = global_position.lat;
                                     mission_item_tmp.lon = global_position.lon;
-                                    mission_item_tmp.altitude = global_position.alt;
-                                    mission_item_tmp.altitude_is_relative = false;
+                                    mission_item_tmp.altitude = global_position.alt - _home.alt;
+                                    mission_item_tmp.altitude_is_relative = true;
                                     mission_item_tmp.time_inside = 5.0f;
                                 }
 
