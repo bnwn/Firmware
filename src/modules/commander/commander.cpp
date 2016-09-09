@@ -2716,13 +2716,13 @@ int commander_thread_main(int argc, char *argv[])
             }
         }
 
-        /* return home if pesticide is not remaining when vehicle status is MISSION */
-        if (!status.pesticide_remaining && status.pesticide_spraying && status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION) {
+        /* return home if pesticide is not remaining (when vehicle status is MISSION) */
+        if (!status.pesticide_remaining && status.pesticide_spraying) {
             /* return */
             main_state_transition(&status, commander_state_s::MAIN_STATE_AUTO_RTL, main_state_prev, &status_flags, &internal_state);
 
             /* stop the pump if pesticide is not remaining */
-            stop_pump();
+            //stop_pump();
 
             /* save current local position if previous flight mode is mission */
             if (main_state_prev == commander_state_s::MAIN_STATE_AUTO_MISSION && !break_point_set_up) {
@@ -2820,19 +2820,19 @@ int commander_thread_main(int argc, char *argv[])
         } else {        
             /* reset break point set up flag */
             break_point_set_up = false;
-        }
 
-        /* handle commands last, as the system needs to be updated to handle them */
-        orb_check(cmd_sub, &updated);
+            /* handle commands last, as the system needs to be updated to handle them */
+            orb_check(cmd_sub, &updated);
 
-        if (updated) {
-            /* got command */
-            orb_copy(ORB_ID(vehicle_command), cmd_sub, &cmd);
+            if (updated) {
+                /* got command */
+                orb_copy(ORB_ID(vehicle_command), cmd_sub, &cmd);
 
-            /* handle it */
-            if (handle_command(&status, &safety, &cmd, &armed, &_home, &global_position, &local_position,
-                    &attitude, &home_pub, &command_ack_pub, &command_ack)) {
-                status_changed = true;
+                /* handle it */
+                if (handle_command(&status, &safety, &cmd, &armed, &_home, &global_position, &local_position,
+                        &attitude, &home_pub, &command_ack_pub, &command_ack)) {
+                    status_changed = true;
+                }
             }
         }
 
