@@ -418,6 +418,16 @@ main_state_transition(struct vehicle_status_s *status, main_state_t new_main_sta
 
 		break;
 
+
+    case commander_state_s::MAIN_STATE_AUTO_POINTATOB:
+
+        /* need global position and home position and set point A and B */
+        if (status_flags->condition_global_position_valid && status_flags->condition_home_position_valid && status_flags->condition_pointatob_enabled) {
+            ret = TRANSITION_CHANGED;
+        }
+
+        break;
+
 	case commander_state_s::MAIN_STATE_OFFBOARD:
 
 		/* need offboard signal */

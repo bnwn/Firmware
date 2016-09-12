@@ -127,6 +127,13 @@ typedef enum VEHICLE_MODE_FLAG
 	VEHICLE_MODE_FLAG_ENUM_END=129, /*  | */
 } VEHICLE_MODE_FLAG;
 
+typedef enum POINT_SET_FLAG
+{
+    POINT_SET_FAILURE=1,
+    POINT_A_SET_SUCCESS=2,
+    POINT_B_SET_SUCCESS=3,
+} POINT_SET_FLAG;
+
 static constexpr uint8_t COMMANDER_MAX_GPS_NOISE = 60;		/**< Maximum percentage signal to noise ratio allowed for GPS reception */
 
 /* Decouple update interval and hysteresis counters, all depends on intervals */
@@ -256,6 +263,8 @@ bool stabilization_required();
 void print_reject_mode(struct vehicle_status_s *current_status, const char *msg);
 
 void print_reject_arm(const char *msg);
+
+void print_point_set_status(POINT_SET_FLAG pflag, const char *msg);
 
 void print_status();
 
@@ -1381,6 +1390,10 @@ int commander_thread_main(int argc, char *argv[])
 	unsigned stick_off_counter = 0;
 	unsigned stick_on_counter = 0;
 
+    /* Start point setting loop */
+    unsigned switch_on_counter = 0;
+    bool switch_long_hold = false;
+
 	bool low_battery_voltage_actions_done = false;
 	bool critical_battery_voltage_actions_done = false;
 
@@ -2418,6 +2431,43 @@ int commander_thread_main(int argc, char *argv[])
 
 			status.rc_signal_lost = false;
 
+            /* check if point set switch is ON enough hold time */
+            if (sp_man.pointset_switch == manual_control_setpoint_s::SWITCH_POS_ON) {
+                /* hold a long time to clear A and B point */
+                if (switch_on_counter > rc_arm_hyst && land_detector.landed) {
+
+                    switch_long_hold = true;
+                    switch_on_counter = 0;
+
+                } else {
+                    switch_on_counter++;
+                }
+
+            } else {
+                /* reset switch_on_counter if switch is long hold */
+                if (switch_long_hold) {
+                    switch_on_counter = 0;
+                }
+
+                /* do point handle only if global position is valid */
+                if (status_flags.condition_global_position_valid && switch_on_counter > 0) {
+                    /* hold a little time to reset takeoff point if landed */
+                    if (land_detector.landed) {
+
+                        /* hold a little time to set A and B point if on air */
+                    } else {
+
+                    }
+
+                    /* warning tune and blink if switch on counter larger zero and global position is invalid */
+                } else if (switch_on_counter > 0) {
+
+                }
+
+                switch_on_counter = 0;
+                switch_long_hold = false;
+            }
+
 			/* check if left stick is in lower left position and we are in MANUAL, Rattitude, or AUTO_READY mode or (ASSIST mode and landed) -> disarm
 			 * do it only for rotary wings in manual mode or fixed wing if landed */
             if ((status.is_rotary_wing || (!status.is_rotary_wing && land_detector.landed)) && status.rc_input_mode != vehicle_status_s::RC_IN_MODE_OFF &&
@@ -2821,19 +2871,19 @@ int commander_thread_main(int argc, char *argv[])
         } else {        
             /* reset break point set up flag */
             break_point_set_up = false;
+        }
 
-            /* handle commands last, as the system needs to be updated to handle them */
-            orb_check(cmd_sub, &updated);
+        /* handle commands last, as the system needs to be updated to handle them */
+        orb_check(cmd_sub, &updated);
 
-            if (updated) {
-                /* got command */
-                orb_copy(ORB_ID(vehicle_command), cmd_sub, &cmd);
+        if (updated) {
+            /* got command */
+            orb_copy(ORB_ID(vehicle_command), cmd_sub, &cmd);
 
-                /* handle it */
-                if (handle_command(&status, &safety, &cmd, &armed, &_home, &global_position, &local_position,
-                        &attitude, &home_pub, &command_ack_pub, &command_ack)) {
-                    status_changed = true;
-                }
+            /* handle it */
+            if (handle_command(&status, &safety, &cmd, &armed, &_home, &global_position, &local_position,
+                    &attitude, &home_pub, &command_ack_pub, &command_ack)) {
+                status_changed = true;
             }
         }
 
@@ -3208,6 +3258,7 @@ set_main_state_rc(struct vehicle_status_s *status_local)
 		 (_last_sp_man.rattitude_switch == sp_man.rattitude_switch) &&
 		 (_last_sp_man.posctl_switch == sp_man.posctl_switch) &&
 		 (_last_sp_man.loiter_switch == sp_man.loiter_switch) &&
+         (_last_sp_man.pointatob_switch == sp_man.pointatob_switch) &&
 		 (_last_sp_man.mode_slot == sp_man.mode_slot))) {
 
 		// update these fields for the geofence system
@@ -3223,6 +3274,8 @@ set_main_state_rc(struct vehicle_status_s *status_local)
 		/* no timestamp change or no switch change -> nothing changed */
 		return TRANSITION_NOT_CHANGED;
 	}
+
+    bool _mode_slot_changed = (_last_sp_man.mode_slot != sp_man.mode_slot) ? true : false;
 
 	_last_sp_man = sp_man;
 
@@ -3259,6 +3312,33 @@ set_main_state_rc(struct vehicle_status_s *status_local)
 
 		/* if we get here mode was rejected, continue to evaluate the main system mode */
 	}
+
+    /* point A to B switch overrides main switch
+     * do it only if mode slot not changed */
+    if ((sp_man.pointatob_switch == manual_control_setpoint_s::SWITCH_POS_ON) && !_mode_slot_changed) {
+        warnx("point A to B changed and ON.");
+        res = main_state_transition(status_local, commander_state_s::MAIN_STATE_AUTO_POINTATOB, main_state_prev, &status_flags, &internal_state);
+
+        if (res == TRANSITION_DENIED) {
+            print_reject_mode(status_local, "AUTO POINT A TO B");
+
+            /* fallback to LOITER if position or point not set */
+            res = main_state_transition(status_local, commander_state_s::MAIN_STATE_AUTO_LOITER, main_state_prev, &status_flags, &internal_state);
+        }
+
+        if (res != TRANSITION_DENIED) {
+            /* changed successfully or already in this state */
+            return res;
+        }
+
+    } else if (status_local->nav_state == commander_state_s::MAIN_STATE_AUTO_POINTATOB) {
+        warnx("stop point A to B and loiter.");
+        res = main_state_transition(status_local, commander_state_s::MAIN_STATE_AUTO_LOITER, main_state_prev, &status_flags, &internal_state);
+
+        if (res != TRANSITION_DENIED) {
+            return res;
+        }
+    }
 
 	/* we know something has changed - check if we are in mode slot operation */
 	if (sp_man.mode_slot != manual_control_setpoint_s::MODE_SLOT_NONE) {
@@ -3760,6 +3840,31 @@ print_reject_arm(const char *msg)
 		mavlink_log_critical(&mavlink_log_pub, msg);
 		tune_negative(true);
 	}
+}
+
+void
+print_point_set_status(POINT_SET_FLAG pflag, const char *msg)
+{
+    hrt_abstime t = hrt_absolute_time();
+
+    if (t - last_print_mode_reject_time > PRINT_MODE_REJECT_INTERVAL) {
+        last_print_mode_reject_time = t;
+        mavlink_log_critical(&mavlink_log_pub, msg);
+
+        switch (pflag) {
+        case POINT_SET_FAILURE:
+            tune_negative(true);
+            break;
+        case POINT_A_SET_SUCCESS:
+            tune_neutral(true);
+            break;
+        case POINT_B_SET_SUCCESS:
+            tune_positive(true);
+            break;
+        default:
+            break;
+        }
+    }
 }
 
 void answer_command(struct vehicle_command_s &cmd, unsigned result,
