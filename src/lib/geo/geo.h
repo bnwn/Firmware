@@ -264,7 +264,7 @@ __EXPORT void create_waypoint_from_line_and_dist(double lat_A, double lon_A, dou
  * @param lon_target longitude of target waypoint in degrees (47.1234567°, not 471234567°)
  */
 __EXPORT void waypoint_from_heading_and_distance(double lat_start, double lon_start, float bearing, float dist,
-		double *lat_target, double *lon_target);
+        double *lat_target, double *lon_target);
 
 /**
  * Returns the bearing to the next waypoint in radians.

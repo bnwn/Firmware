@@ -1421,13 +1421,13 @@ PX4IO::io_set_arming_state()
 		// 	clear |= PX4IO_P_SETUP_ARMING_TERMINATION_FAILSAFE;
 		// }
 
-		if (armed.ready_to_arm) {
+        if (armed.ready_to_arm) {
 			set |= PX4IO_P_SETUP_ARMING_IO_ARM_OK;
 
-		} else {
+        } else {
 			clear |= PX4IO_P_SETUP_ARMING_IO_ARM_OK;
 		}
-	}
+    }
 
 	if (have_control_mode == OK) {
 		if (control_mode.flag_external_manual_override_ok) {

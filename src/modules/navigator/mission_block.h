@@ -131,11 +131,22 @@ protected:
 	 */
 	void set_follow_target_item(struct mission_item_s *item, float min_clearance, follow_target_s & target, float yaw);
 
-	void issue_command(const struct mission_item_s *item);
+	void issue_command(const struct mission_item_s *item);  
+
+    /**
+     * Set pwm_output AUX4 to driver the pump
+     */
+    void start_pump();
+
+    /**
+     * Reset pwm_output AUX4 to stop the pump
+     */
+    void stop_pump();
 
 	mission_item_s _mission_item;
 	bool _waypoint_position_reached;
 	bool _waypoint_yaw_reached;
+    bool _starting_point_reached;
 	hrt_abstime _time_first_inside_orbit;
 	hrt_abstime _action_start;
 	hrt_abstime _time_wp_reached;

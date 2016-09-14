@@ -61,6 +61,8 @@
 #include <drivers/drv_tone_alarm.h>
 #include <drivers/drv_led.h>
 #include <drivers/drv_rgbled.h>
+#include <drivers/drv_pwm_output.h>
+#include <drivers/drv_gpio.h>
 
 #include "commander_helper.h"
 #include "DevMgr.hpp"
@@ -342,4 +344,18 @@ void rgbled_set_pattern(rgbled_pattern_t *pattern)
 {
 
 	h_rgbleds.ioctl(RGBLED_SET_PATTERN, (unsigned long)pattern);
+}
+
+unsigned long get_pump_status()
+{
+    unsigned long pump_pwm = (unsigned long) up_pwm_servo_get(3);
+    if (pump_pwm > 2100) {
+        pump_pwm = 0;
+    }
+    return pump_pwm;
+}
+
+void stop_pump()
+{
+    up_pwm_servo_set(3, 1000);
 }

@@ -55,8 +55,17 @@ typedef enum {
 	DM_KEY_WAYPOINTS_OFFBOARD_1,	/* (alernate between 0 and 1) */
 	DM_KEY_WAYPOINTS_ONBOARD,	/* Mission way point coordinates generated onboard */
 	DM_KEY_MISSION_STATE,		/* Persistent mission state */
+    DM_KEY_POINTATOB,           /* Mission way point A to B */
 	DM_KEY_NUM_KEYS			/* Total number of item types defined */
 } dm_item_t;
+
+/** Types of point A to B items */
+typedef enum {
+    DM_KEY_POINT_A = 0,
+    DM_KEY_POINT_B,
+    DM_KEY_POINT_CURRENT,
+    DM_KEY_POINT_NEXT
+} dm_point_item_t;
 
 #define DM_KEY_WAYPOINTS_OFFBOARD(_id) (_id == 0 ? DM_KEY_WAYPOINTS_OFFBOARD_0 : DM_KEY_WAYPOINTS_OFFBOARD_1)
 
@@ -71,7 +80,8 @@ enum {
 	DM_KEY_WAYPOINTS_OFFBOARD_0_MAX = NUM_MISSIONS_SUPPORTED,
 	DM_KEY_WAYPOINTS_OFFBOARD_1_MAX = NUM_MISSIONS_SUPPORTED,
 	DM_KEY_WAYPOINTS_ONBOARD_MAX = NUM_MISSIONS_SUPPORTED,
-	DM_KEY_MISSION_STATE_MAX = 1
+    DM_KEY_MISSION_STATE_MAX = 1,
+    DM_KEY_POINTATOB_MAX = 1
 };
 
 /** Data persistence levels */

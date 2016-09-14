@@ -112,6 +112,30 @@ struct mission_item_s {
 	bool force_heading;		/**< heading needs to be reached ***/
 };
 #pragma pack(pop)
+
+#pragma pack(push, 1)
+struct pointatob_item_s {
+        bool altitude_is_relative;	/**< true if altitude is relative from start point	*/
+        double lat;			/**< latitude in degrees				*/
+        double lon;			/**< longitude in degrees				*/
+        float altitude;			/**< altitude in meters	(AMSL)			*/
+        float yaw;			/**< in radians NED -PI..+PI, NAN means don't change yaw		*/
+        uint64_t current_seq;           /**< waypoint current seq, in radians -PI..+PI          */
+        float turn_bearing;             /**< vehicle turn bearing                               */
+        bool loiter_exit_xtrack;	/**< exit xtrack location: 0 for center of loiter wp, 1 for exit location */
+        float acceptance_radius;	/**< default radius in which the mission is accepted as reached in meters */
+        float time_inside;		/**< time that the MAV should stay inside the radius before advancing in seconds */
+        float pitch_min;		/**< minimal pitch angle for fixed wing takeoff waypoints */
+        bool autocontinue;		/**< true if next waypoint should follow after this one */
+        unsigned origin;		/**< where the waypoint has been generated		*/
+        int do_jump_mission_index;	/**< index where the do jump will go to                 */
+        unsigned do_jump_repeat_count;	/**< how many times do jump needs to be done            */
+        unsigned do_jump_current_count;	/**< count how many times the jump has been done	*/
+        int8_t frame;			/**< mission frame ***/
+        bool force_heading;		/**< heading needs to be reached ***/
+};
+#pragma pack(pop)
+
 #include <uORB/topics/mission.h>
 
 /**

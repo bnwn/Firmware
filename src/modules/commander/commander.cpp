@@ -104,6 +104,8 @@
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vtol_vehicle_status.h>
+#include <uORB/topics/flowmeter_sensor.h>
+#include <uORB/topics/input_rc.h>
 #include <uORB/uORB.h>
 
 /* oddly, ERROR is not defined for c++ */
@@ -124,6 +126,15 @@ typedef enum VEHICLE_MODE_FLAG
 	VEHICLE_MODE_FLAG_SAFETY_ARMED=128, /* 0b10000000 MAV safety set to armed. Motors are enabled / running / can start. Ready to fly. | */
 	VEHICLE_MODE_FLAG_ENUM_END=129, /*  | */
 } VEHICLE_MODE_FLAG;
+
+typedef enum POINT_SET_FLAG
+{
+    POINT_A_SET_SUCCESS=0,
+    POINT_B_SET_SUCCESS=1,
+    POINT_SET_FAILURE=2,
+    POINT_CLEAR_SUCCESS=3,
+    POINT_RESET_SUCCESS=4,
+} POINT_SET_FLAG;
 
 static constexpr uint8_t COMMANDER_MAX_GPS_NOISE = 60;		/**< Maximum percentage signal to noise ratio allowed for GPS reception */
 
@@ -149,6 +160,9 @@ static constexpr uint8_t COMMANDER_MAX_GPS_NOISE = 60;		/**< Maximum percentage 
 
 #define HIL_ID_MIN 1000
 #define HIL_ID_MAX 1999
+
+#define PUMP_SPRAYING_DELAY_TIME 5*1000*1000
+uint64_t begin_spraying_time = hrt_absolute_time();
 
 /* Mavlink log uORB handle */
 static orb_advert_t mavlink_log_pub = 0;
@@ -252,6 +266,8 @@ void print_reject_mode(struct vehicle_status_s *current_status, const char *msg)
 
 void print_reject_arm(const char *msg);
 
+void print_point_set_status(POINT_SET_FLAG pflag, const char *msg);
+
 void print_status();
 
 transition_result_t arm_disarm(bool arm, orb_advert_t *mavlink_log_pub, const char *armedBy);
@@ -279,6 +295,15 @@ static bool is_hil_setup(int id) {
 	return (id >= HIL_ID_MIN) && (id <= HIL_ID_MAX);
 }
 
+/**
+ * reset current point in point A to B mode
+ */
+int8_t reset_current_point_atob(double lat_now, double lon_now);
+
+/**
+ * restart point A to B
+ */
+void point_atob_init();
 
 int commander_main(int argc, char *argv[])
 {
@@ -614,6 +639,8 @@ void print_status()
 
 
 	warnx("arming: %s", armed_str);
+
+    warnx("arg:%ul ", get_pump_status());
 }
 
 static orb_advert_t status_pub;
@@ -1156,7 +1183,7 @@ static void commander_set_home_position(orb_advert_t &homePub, home_position_s &
 int commander_thread_main(int argc, char *argv[])
 {
 	/* not yet initialized */
-	commander_initialized = false;
+    commander_initialized = false;
 
 	bool sensor_fail_tune_played = false;
 	bool arm_tune_played = false;
@@ -1165,7 +1192,8 @@ int commander_thread_main(int argc, char *argv[])
 	bool was_armed = false;
 
 	bool startup_in_hil = false;
-
+    /* save break point once */
+    bool break_point_set_up = false;
 	// XXX for now just set sensors as initialized
 	status_flags.condition_system_sensors_initialized = true;
 
@@ -1266,6 +1294,8 @@ int commander_thread_main(int argc, char *argv[])
 	/* vehicle status topic */
 	memset(&status, 0, sizeof(status));
 
+    status.pesticide_remaining = true;
+    status.pesticide_spraying = false;
 	// We want to accept RC inputs as default
 	status_flags.rc_input_blocked = false;
 	status.rc_input_mode = vehicle_status_s::RC_IN_MODE_DEFAULT;
@@ -1364,12 +1394,48 @@ int commander_thread_main(int argc, char *argv[])
 		orb_publish(ORB_ID(offboard_mission), mission_pub, &mission);
 	}
 
+    pointatob_item_s pointatob_item;
+    status_flags.condition_pointatob_enabled = false;
+
+    if (dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_B, &pointatob_item, sizeof(pointatob_item_s)) == sizeof(pointatob_item_s)) {
+        if (pointatob_item.current_seq > 0) {
+            mavlink_log_info(&mavlink_log_pub, "[cmd] Point A to B loaded, A: lat:%.6f, lon:%.6f, alt:%.6f", \
+                             pointatob_item.lat, pointatob_item.lon, pointatob_item.altitude);
+            if (dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_A, &pointatob_item, sizeof(pointatob_item_s)) == sizeof(pointatob_item_s)) {
+                mavlink_log_info(&mavlink_log_pub, "[cmd]                    B: lat:%.6f, lon:%.6f, alt%.6f", \
+                                 pointatob_item.lat, pointatob_item.lon, pointatob_item.altitude);
+
+                status_flags.condition_pointatob_enabled = true;
+
+            } else {
+                const char *missionfail = "reading point A failed, need to reset point A and B";
+                warnx("%s", missionfail);
+                mavlink_log_critical(&mavlink_log_pub, missionfail);
+
+                dm_clear(DM_KEY_POINTATOB);
+            }
+        }
+
+    } else {
+        const char  *missionfail = "reading mission state failed";
+        warnx("%s", missionfail);
+        mavlink_log_critical(&mavlink_log_pub, missionfail);
+
+        /* initialize mission state in dataman */
+        dm_clear(DM_KEY_POINTATOB);
+    }
+
 	int ret;
 
 	/* Start monitoring loop */
 	unsigned counter = 0;
 	unsigned stick_off_counter = 0;
 	unsigned stick_on_counter = 0;
+
+    /* Start point setting loop */
+    unsigned switch_on_counter = 0;
+    bool switch_long_hold = false;
+    unsigned point_current_seq = 0;
 
 	bool low_battery_voltage_actions_done = false;
 	bool critical_battery_voltage_actions_done = false;
@@ -1454,6 +1520,27 @@ int commander_thread_main(int argc, char *argv[])
 	int sensor_sub = orb_subscribe(ORB_ID(sensor_combined));
 	struct sensor_combined_s sensors;
 	memset(&sensors, 0, sizeof(sensors));
+
+    /* Subscribe to flowmeter topic */
+    int flowmeter_sub = orb_subscribe(ORB_ID(flowmeter_sensor));
+    struct flowmeter_sensor_s flowmeter;
+    memset(&flowmeter, 0, sizeof(flowmeter));
+
+    int32_t farming_mission_mode = 0;
+    param_t farming_param = param_find("FARMING_MISSION");
+
+    if (farming_param != PARAM_INVALID) {
+
+        param_get(farming_param, &farming_mission_mode);
+    }
+
+
+#ifdef CONTROL_PUMP_MANNUL
+    /* Subscribe to input_rc topic */
+    int input_rc_sub = orb_subscribe(ORB_ID(input_rc));
+    struct input_rc_s rc_input;
+    memset(&rc_input, 0, sizeof(rc_input));
+#endif
 
 	/* Subscribe to differential pressure topic */
 	int diff_pres_sub = orb_subscribe(ORB_ID(differential_pressure));
@@ -2387,16 +2474,89 @@ int commander_thread_main(int argc, char *argv[])
 
 			status.rc_signal_lost = false;
 
+            /* check if point set switch is ON enough hold time */
+            if (sp_man.pointset_switch == manual_control_setpoint_s::SWITCH_POS_ON) {
+                /* hold a long time to clear A and B point */
+                if (switch_on_counter > rc_arm_hyst && land_detector.landed) {
+                    dm_clear(DM_KEY_POINTATOB);
+                    print_point_set_status(POINT_CLEAR_SUCCESS, "point item clear up.");
+
+                    status_flags.condition_pointatob_enabled = false;
+
+                    switch_long_hold = true;
+                    switch_on_counter = 0;
+
+                } else {
+                    switch_on_counter++;
+                }
+
+            } else {
+                /* reset switch_on_counter if switch is long hold */
+                if (switch_long_hold) {
+                    switch_on_counter = 0;
+                }
+
+                /* do point handle only if global position is valid */
+                if (status_flags.condition_global_position_valid && switch_on_counter > 0) {
+                    /* hold a little time to reset current point if landed and point A to B mode is enabled */
+                    if (land_detector.landed && status_flags.condition_pointatob_enabled) {
+                        pointatob_item_s point_item_tmp;
+                        const size_t len = sizeof(pointatob_item_s);
+
+                        if (reset_current_point_atob(global_position.lat, global_position.lon)) {
+                            print_point_set_status(POINT_RESET_SUCCESS, "current point reset success.");
+
+                            /* restart point A to B mission */
+                        } else {
+                            point_atob_init();
+                        }
+
+                        /* hold a little time to set A and B point if on air */
+                    } else {
+                        pointatob_item_s pointatob_item_tmp;
+                        const size_t len = sizeof(pointatob_item_s);
+
+                        pointatob_item_tmp.altitude = global_position.alt - _home.alt;
+                        pointatob_item_tmp.altitude_is_relative = true;
+                        pointatob_item_tmp.lat = global_position.lat;
+                        pointatob_item_tmp.lon = global_position.lon;
+                        pointatob_item_tmp.current_seq = point_current_seq;
+
+                        /* save item from sequence head */
+                        if (dm_write(DM_KEY_POINTATOB, point_current_seq, DM_PERSIST_POWER_ON_RESET, &pointatob_item_tmp, len) == len) {
+                            print_point_set_status(point_current_seq, "savint point item success.");
+
+                            if (POINT_B_SET_SUCCESS == point_current_seq) {
+                                point_atob_init();
+                            }
+
+                            point_current_seq = 1 ^ point_current_seq;
+
+                        } else {
+                            /* not supposed to happen unless the datamanager can not access the SD card */
+                            print_point_set_status(POINT_SET_FAILURE, "saving point item failed.");
+                        }
+                    }
+
+                    /* warning tune and blink if switch on counter larger zero and global position is invalid */
+                } else if (switch_on_counter > 0) {
+                    print_point_set_status(POINT_SET_FAILURE, "It's not have global position.");
+                }
+
+                switch_on_counter = 0;
+                switch_long_hold = false;
+            }
+
 			/* check if left stick is in lower left position and we are in MANUAL, Rattitude, or AUTO_READY mode or (ASSIST mode and landed) -> disarm
 			 * do it only for rotary wings in manual mode or fixed wing if landed */
-			if ((status.is_rotary_wing || (!status.is_rotary_wing && land_detector.landed)) && status.rc_input_mode != vehicle_status_s::RC_IN_MODE_OFF &&
+            if ((status.is_rotary_wing || (!status.is_rotary_wing && land_detector.landed)) && status.rc_input_mode != vehicle_status_s::RC_IN_MODE_OFF &&
 			    (status.arming_state == vehicle_status_s::ARMING_STATE_ARMED || status.arming_state == vehicle_status_s::ARMING_STATE_ARMED_ERROR) &&
 			    (internal_state.main_state == commander_state_s::MAIN_STATE_MANUAL ||
 			    	internal_state.main_state == commander_state_s::MAIN_STATE_ACRO ||
 			    	internal_state.main_state == commander_state_s::MAIN_STATE_STAB ||
 			    	internal_state.main_state == commander_state_s::MAIN_STATE_RATTITUDE ||
 			    	land_detector.landed) &&
-			    sp_man.r < -STICK_ON_OFF_LIMIT && sp_man.z < 0.1f) {
+                sp_man.r < -STICK_ON_OFF_LIMIT && sp_man.z < 0.1f) {
 
 				if (stick_off_counter > rc_arm_hyst) {
 					/* disarm to STANDBY if ARMED or to STANDBY_ERROR if ARMED_ERROR */
@@ -2603,7 +2763,7 @@ int commander_thread_main(int argc, char *argv[])
 
 		if (updated) {
 			/* got command */
-			orb_copy(ORB_ID_VEHICLE_ATTITUDE_CONTROLS, actuator_controls_sub, &actuator_controls);
+            orb_copy(ORB_ID_VEHICLE_ATTITUDE_CONTROLS, actuator_controls_sub, &actuator_controls);
 
 			/* Check engine failure
 			 * only for fixed wing for now
@@ -2647,19 +2807,164 @@ int commander_thread_main(int argc, char *argv[])
 			}
 		}
 
-		/* handle commands last, as the system needs to be updated to handle them */
-		orb_check(cmd_sub, &updated);
+#ifdef CONTROL_PUMP_MANNUL
+        /* check rc input channel 9 */
+        orb_check(input_rc_sub, &updated);
 
-		if (updated) {
-			/* got command */
-			orb_copy(ORB_ID(vehicle_command), cmd_sub, &cmd);
+        if (updated) {
+            orb_copy(ORB_ID(input_rc), input_rc_sub, &rc_input);
+            if (rc_input.channel_count > 8 && rc_input.values[8] > rc_input.PUMP_WORKING_PWM) {
+                status.pesticide_spraying = true;
 
-			/* handle it */
-			if (handle_command(&status, &safety, &cmd, &armed, &_home, &global_position, &local_position,
-					&attitude, &home_pub, &command_ack_pub, &command_ack)) {
-				status_changed = true;
-			}
-		}
+            } else {
+                status.pesticide_spraying = false;
+                begin_spraying_time = hrt_absolute_time();
+            }
+        }
+#endif
+
+        if (1 == farming_mission_mode) {
+            unsigned long pump_output;
+            /* get pump status */
+            pump_output = get_pump_status();
+            status.pesticide_spraying = (pump_output > 1500) ? true : false;
+
+            if (status.pesticide_spraying) {
+                if (hrt_absolute_time() - begin_spraying_time > PUMP_SPRAYING_DELAY_TIME) {
+                    orb_check(flowmeter_sub, &updated);
+
+                    if (updated) {
+                        orb_copy(ORB_ID(flowmeter_sensor), flowmeter_sub, &flowmeter);
+                        status.pesticide_remaining = flowmeter.pesticide_remaining;
+                    }
+                }
+
+            } else {
+                status.pesticide_remaining = true;
+                begin_spraying_time = hrt_absolute_time();
+            }
+        }
+
+        /* return home if pesticide is not remaining (when vehicle status is MISSION) */
+        if (!status.pesticide_remaining && status.pesticide_spraying && !land_detector.landed && status.nav_state != commander_state_s::MAIN_STATE_AUTO_RTL) {
+            /* return */
+            main_state_transition(&status, commander_state_s::MAIN_STATE_AUTO_RTL, main_state_prev, &status_flags, &internal_state);
+
+            /* stop the pump if pesticide is not remaining */
+            stop_pump();
+
+            /* save current local position*/
+            if (main_state_prev == commander_state_s::MAIN_STATE_AUTO_MISSION && !break_point_set_up) {
+            //if (!break_point_set_up) {
+                dm_lock(DM_KEY_MISSION_STATE);
+                if (dm_read(DM_KEY_MISSION_STATE, 0, &mission, sizeof(mission_s)) == sizeof(mission_s)) {
+                    if (mission.dataman_id >= 0 && mission.dataman_id <= 1) {
+                        if (mission.count > 0) {
+                            struct mission_item_s mission_item_tmp;
+                            const ssize_t len = sizeof(struct mission_item_s);
+                            /* offboard mission */
+                            dm_item_t dm_item;
+                            dm_item = DM_KEY_WAYPOINTS_OFFBOARD(mission.dataman_id);
+
+                            int offset = 1;
+                            const int new_count = mission.count - mission.current_seq;
+                            for (; offset<=new_count; offset++) {
+                                /* read mission item from datamanager */
+                                if (dm_read(dm_item, mission.current_seq-1+offset, &mission_item_tmp,len) != len) {
+                                    /* not supposed to happen unless the datamanager can not access the SD card */
+                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point1");
+                                    mission.dataman_id = 0;
+                                    mission.count = 0;
+                                    break;
+                                }
+
+                                /* first point command set as takeoff */
+                                if (1 == offset) {
+                                    mission_item_tmp.nav_cmd = NAV_CMD::NAV_CMD_WAYPOINT;
+                                    mission_item_tmp.lat = global_position.lat;
+                                    mission_item_tmp.lon = global_position.lon;
+                                    mission_item_tmp.altitude = global_position.alt - _home.alt;
+                                    mission_item_tmp.altitude_is_relative = true;
+                                    mission_item_tmp.time_inside = 5.0f;
+                                }
+
+                                /* next waypoint is no longer follow this one which is the last waypoint */
+                                if (new_count == offset) {
+                                    mission_item_tmp.autocontinue = false;
+                                }
+
+                                /* save item from sequence head */
+                                if (dm_write(dm_item, offset-1, DM_PERSIST_POWER_ON_RESET, &mission_item_tmp, len) != len) {
+                                    /* not supposed to happen unless the datamanager can not access the SD card */
+                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point2");
+                                    mission.dataman_id = 0;
+                                    mission.count = 0;
+                                    break;
+                                }
+                            }
+
+                            for (int i=0; i<7; i++) {
+                                mission_item_tmp.params[i] = 0.0f;
+                            }
+                            mission_item_tmp.nav_cmd = NAV_CMD::NAV_CMD_IDLE;
+
+                            /* set remaining point as IDLE */
+                            for (int i=offset; i<mission.count; i++) {
+                                /* save item from sequence head */
+                                if (dm_write(dm_item, offset, DM_PERSIST_POWER_ON_RESET, &mission_item_tmp, len) != len) {
+                                    /* not supposed to happen unless the datamanager can not access the SD card */
+                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point2");
+                                    mission.dataman_id = 0;
+                                    mission.count = 0;
+                                    break;
+                                }
+                            }
+
+                            /* set mission count if all item write successful */
+                            if (offset > (mission.count - mission.current_seq)) {
+                                mission.count = mission.count - mission.current_seq;
+                                break_point_set_up = true;
+                            }
+                        }
+
+                    } else {
+                        const char *missionfail = "reading mission state failed when save break point4";
+                        warnx("%s", missionfail);
+                        mavlink_log_critical(&mavlink_log_pub, missionfail);
+
+                        /* initialize mission state in dataman */
+                        mission.dataman_id = 0;
+                        mission.count = 0;
+                    }
+
+                    /* initialize mission sequence in dataman */
+                    mission.current_seq = 0;
+                    dm_write(DM_KEY_MISSION_STATE, 0, DM_PERSIST_POWER_ON_RESET, &mission, sizeof(mission_s));
+
+                    mission_pub = orb_advertise(ORB_ID(offboard_mission), &mission);
+                    orb_publish(ORB_ID(offboard_mission), mission_pub, &mission);
+                }
+                dm_unlock(DM_KEY_MISSION_STATE);
+            }
+
+        } else {        
+            /* reset break point set up flag */
+            break_point_set_up = false;
+        }
+
+        /* handle commands last, as the system needs to be updated to handle them */
+        orb_check(cmd_sub, &updated);
+
+        if (updated) {
+            /* got command */
+            orb_copy(ORB_ID(vehicle_command), cmd_sub, &cmd);
+
+            /* handle it */
+            if (handle_command(&status, &safety, &cmd, &armed, &_home, &global_position, &local_position,
+                    &attitude, &home_pub, &command_ack_pub, &command_ack)) {
+                status_changed = true;
+            }
+        }
 
 		/* Check for failure combinations which lead to flight termination */
 		if (armed.armed &&
@@ -3032,6 +3337,7 @@ set_main_state_rc(struct vehicle_status_s *status_local)
 		 (_last_sp_man.rattitude_switch == sp_man.rattitude_switch) &&
 		 (_last_sp_man.posctl_switch == sp_man.posctl_switch) &&
 		 (_last_sp_man.loiter_switch == sp_man.loiter_switch) &&
+         (_last_sp_man.pointatob_switch == sp_man.pointatob_switch) &&
 		 (_last_sp_man.mode_slot == sp_man.mode_slot))) {
 
 		// update these fields for the geofence system
@@ -3047,6 +3353,8 @@ set_main_state_rc(struct vehicle_status_s *status_local)
 		/* no timestamp change or no switch change -> nothing changed */
 		return TRANSITION_NOT_CHANGED;
 	}
+
+    bool _mode_slot_changed = (_last_sp_man.mode_slot != sp_man.mode_slot) ? true : false;
 
 	_last_sp_man = sp_man;
 
@@ -3083,6 +3391,33 @@ set_main_state_rc(struct vehicle_status_s *status_local)
 
 		/* if we get here mode was rejected, continue to evaluate the main system mode */
 	}
+
+    /* point A to B switch overrides main switch
+     * do it only if mode slot not changed */
+    if ((sp_man.pointatob_switch == manual_control_setpoint_s::SWITCH_POS_ON) && !_mode_slot_changed) {
+        warnx("point A to B changed and ON.");
+        res = main_state_transition(status_local, commander_state_s::MAIN_STATE_AUTO_POINTATOB, main_state_prev, &status_flags, &internal_state);
+
+        if (res == TRANSITION_DENIED) {
+            print_reject_mode(status_local, "AUTO POINT A TO B");
+
+            /* fallback to LOITER if position or point not set */
+            res = main_state_transition(status_local, commander_state_s::MAIN_STATE_AUTO_LOITER, main_state_prev, &status_flags, &internal_state);
+        }
+
+        if (res != TRANSITION_DENIED) {
+            /* changed successfully or already in this state */
+            return res;
+        }
+
+    } else if (status_local->nav_state == commander_state_s::MAIN_STATE_AUTO_POINTATOB) {
+        warnx("stop point A to B and loiter.");
+        res = main_state_transition(status_local, commander_state_s::MAIN_STATE_AUTO_LOITER, main_state_prev, &status_flags, &internal_state);
+
+        if (res != TRANSITION_DENIED) {
+            return res;
+        }
+    }
 
 	/* we know something has changed - check if we are in mode slot operation */
 	if (sp_man.mode_slot != manual_control_setpoint_s::MODE_SLOT_NONE) {
@@ -3586,6 +3921,33 @@ print_reject_arm(const char *msg)
 	}
 }
 
+void
+print_point_set_status(POINT_SET_FLAG pflag, const char *msg)
+{
+    hrt_abstime t = hrt_absolute_time();
+
+    if (t - last_print_mode_reject_time > PRINT_MODE_REJECT_INTERVAL) {
+        last_print_mode_reject_time = t;
+        mavlink_log_critical(&mavlink_log_pub, msg);
+
+        switch (pflag) {
+        case POINT_SET_FAILURE:
+            tune_negative(true);
+            break;
+        case POINT_A_SET_SUCCESS:
+            tune_neutral(true);
+            break;
+        case POINT_B_SET_SUCCESS:
+        case POINT_RESET_SUCCESS:
+        case POINT_CLEAR_SUCCESS:
+            tune_positive(true);
+            break;
+        default:
+            break;
+        }
+    }
+}
+
 void answer_command(struct vehicle_command_s &cmd, unsigned result,
 					orb_advert_t &command_ack_pub, vehicle_command_ack_s &command_ack)
 {
@@ -3929,4 +4291,102 @@ void *commander_low_prio_loop(void *arg)
 	px4_close(cmd_sub);
 
 	return NULL;
+}
+
+int8_t reset_current_point_atob(double lat_now, double lon_now)
+{
+    struct pointatob_item_s point_item_a, point_item_b, point_item_tmp;
+    const size_t len = sizeof(pointatob_item_s);
+    float distance_atoc, distance_btoc;
+
+    param_t param_interval_distance;
+    int32_t interval_distance;
+
+    param_interval_distance = param_find("ATOB_INTERVAL_DISTANCE");
+    interval_distance = param_get(param_interval_distance, interval_distance);
+
+    /* if point A not saved or read error return -1 */
+    if ((dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_A, &point_item_a, len) != len) || \
+            (dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_B, &point_item_b, len) != len)) {
+        return -1;
+    }
+
+    distance_atoc = get_distance_to_next_waypoint(point_item_a.lat, point_item_a.lon, lat_now, lon_now);
+    distance_btoc = get_distance_to_next_waypoint(point_item_b.lat, point_item_b.lon, lat_now, lon_now);
+
+    /* get the shorter distance point */
+    point_item_a = (distance_atoc <= distance_btoc) ? point_item_a : point_item_b;
+    float distance_min = (distance_atoc <= distance_btoc) ? distance_atoc : distance_btoc;
+
+    /* calculate angle error between bearing A to B and the closer point to C. */
+    float angle_error = fabsf(point_item_a.turn_bearing - get_bearing_to_next_waypoint(point_item_a.lat, point_item_a.lon, lat_now, lon_now));
+
+    /* Sacrifice precision to premote excute speed */
+    int32_t distance_min_int = (int32_t) distance_min;
+    distance_min_int = distance_min_int * cos(angle_error);
+    int32_t distance_error = distance_min_int % interval_distance;
+
+    if ((distance_error * 2) >= interval_distance) {
+        distance_min_int = distance_min_int - distance_error + interval_distance;
+
+    } else {
+        distance_min_int = distance_min_int - distance_error;
+    }
+
+    waypoint_from_heading_and_distance(point_item_a.lat, point_item_a.lon, point_item_a.turn_bearing, (float)distance_min_int, &point_item_tmp.lat, &point_item_tmp.lon);
+}
+
+void point_atob_init()
+{
+    struct pointatob_item_s point_item_a, point_item_b;
+    const size_t len = sizeof(pointatob_item_s);
+    float bearing_atob;
+
+    param_t param_turn_direction;
+    int32_t turn_direction;
+
+    param_turn_direction = param_find("ATOB_TURN_DIRECTION");
+    param_get(param_turn_direction, &turn_direction);
+
+    if (dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_A, &point_item_a, len) == len) {
+        if (dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_B, &point_item_b, len) == len) {
+            /* get point A to B bearing */
+            bearing_atob = get_bearing_to_next_waypoint(point_item_a.lat, point_item_a.lon, point_item_b.lat, point_item_b.lon);
+            point_item_a.turn_bearing = point_item_b.turn_bearing = bearing_atob + turn_direction * M_PI_2_F;
+
+            if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_A, DM_PERSIST_POWER_ON_RESET, &point_item_a, len) == len) {
+                if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_B, DM_PERSIST_POWER_ON_RESET, &point_item_b, len) == len) {
+                    if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_CURRENT, DM_PERSIST_POWER_ON_RESET, &point_item_a, len) == len) {
+                        if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_NEXT, DM_PERSIST_POWER_ON_RESET, &point_item_b, len) == len) {
+
+                            print_point_set_status(POINT_RESET_SUCCESS, "point A to B restart success.");
+                            status_flags.condition_pointatob_enabled = true;
+                            return;
+
+                            /* not supposed to happen unless datamannger can't access the SD card */
+                        } else {
+                            print_point_set_status(POINT_SET_FAILURE, "next point reset failed.");
+                        }
+
+                    } else {
+                        print_point_set_status(POINT_SET_FAILURE, "current point reset failed.");
+                    }
+
+                } else {
+                    print_point_set_status(POINT_SET_FAILURE, "point B reset failed.");
+                }
+
+            } else {
+                print_point_set_status(POINT_SET_FAILURE, "point A reset failed.");
+            }
+
+        } else {
+            print_point_set_status(POINT_SET_FAILURE, "point B read error when current point set.");
+        }
+
+    } else {
+        print_point_set_status(POINT_SET_FAILURE, "point A read error when current point set.");
+    }
+
+    status_flags.condition_pointatob_enabled = false;
 }

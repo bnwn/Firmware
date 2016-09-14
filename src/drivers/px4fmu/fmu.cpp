@@ -85,7 +85,8 @@
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/safety.h>
 #include <uORB/topics/adc_report.h>
-
+#include <uORB/topics/input_rc.h>
+#include <commander/commander_helper.h>
 
 #ifdef HRT_PPM_CHANNEL
 # include <systemlib/ppm_decode.h>
@@ -106,6 +107,8 @@
 #define LED_PATTERN_IO_ARMED 			0x5050		/**< long off, then double blink 	*/
 #define LED_PATTERN_FMU_ARMED 			0x5500		/**< long off, then quad blink 		*/
 #define LED_PATTERN_IO_FMU_ARMED 		0xffff		/**< constantly on			*/
+
+#define SERVO_PWM_MAX    20*1000UL
 
 #if !defined(BOARD_HAS_PWM)
 #  error "board_config.h needs to define BOARD_HAS_PWM"
@@ -182,11 +185,15 @@ private:
 	int		_armed_sub;
 	int		_param_sub;
 	int		_adc_sub;
+    int     _rc_input_sub;
+    int     _vehicle_status_sub;
+    uint16_t _pump_pwm;
 	struct rc_input_values	_rc_in;
+    struct vehicle_status_s _vehicle_status;
 	float		_analog_rc_rssi_volt;
 	bool		_analog_rc_rssi_stable;
 	orb_advert_t	_to_input_rc;
-	orb_advert_t	_outputs_pub;
+    orb_advert_t	_outputs_pub;
 	unsigned	_num_outputs;
 	int		_class_instance;
 	int		_rcs_fd;
@@ -303,11 +310,14 @@ PX4FMU::PX4FMU() :
 	_armed_sub(-1),
 	_param_sub(-1),
 	_adc_sub(-1),
-	_rc_in{},
+    _rc_input_sub(-1),
+    _vehicle_status_sub(-1),
+    _pump_pwm(0),
+    _rc_in{},
 	_analog_rc_rssi_volt(-1.0f),
 	_analog_rc_rssi_stable(false),
 	_to_input_rc(nullptr),
-	_outputs_pub(nullptr),
+    _outputs_pub(nullptr),
 	_num_outputs(0),
 	_class_instance(0),
 	_rcs_fd(-1),
@@ -576,7 +586,10 @@ PX4FMU::set_mode(Mode mode)
 		_pwm_default_rate = 50;
 		_pwm_alt_rate = 50;
 		_pwm_alt_rate_channels = 0;
-		_pwm_mask = 0x3f;
+        /* set servo output 5 to pwm_input.but not only here.
+         * _pwm_mask = 0x3f;
+         */
+        _pwm_mask = 0x2f;
 		_pwm_initialized = false;
 
 		break;
@@ -886,7 +899,7 @@ PX4FMU::update_pwm_out_state(bool on)
 	if (on && !_pwm_initialized && _pwm_mask != 0) {
 		up_pwm_servo_init(_pwm_mask);
 		set_pwm_rate(_pwm_alt_rate_channels, _pwm_default_rate, _pwm_alt_rate);
-		_pwm_initialized = true;
+        _pwm_initialized = true;
 	}
 
 	up_pwm_servo_arm(on);
@@ -902,6 +915,8 @@ PX4FMU::cycle()
 		_armed_sub = orb_subscribe(ORB_ID(actuator_armed));
 		_param_sub = orb_subscribe(ORB_ID(parameter_update));
 		_adc_sub = orb_subscribe(ORB_ID(adc_report));
+        _rc_input_sub = orb_subscribe(ORB_ID(input_rc));
+        _vehicle_status_sub = orb_subscribe(ORB_ID(vehicle_status));
 
 		/* initialize PWM limit lib */
 		pwm_limit_init(&_pwm_limit);
@@ -1026,6 +1041,7 @@ PX4FMU::cycle()
 			}
 		}
 
+#ifdef MIX_CONTROL
 		/* can we mix? */
 		if (_mixers != nullptr) {
 
@@ -1091,9 +1107,37 @@ PX4FMU::cycle()
 
 			publish_pwm_outputs(pwm_limited, num_outputs);
 		}
+#else
+#endif
 	}
 
+    bool updated = false;
+
+    orb_check(_vehicle_status_sub, &updated);
+
+    if (updated) {
+        orb_copy(ORB_ID(vehicle_status), _vehicle_status_sub, &_vehicle_status);
+    }
+
+    if (_vehicle_status.nav_state != vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION) {
+        /* set AUX4 to control pump, cannot not use mix */
+        orb_check(_rc_input_sub, &updated);
+
+        if (updated) {
+            orb_copy(ORB_ID(input_rc), _rc_input_sub, &_rc_in);
+            if (_rc_in.channel_count > 8) {
+                _pump_pwm =_rc_in.values[8];
+                pwm_output_set(3, _pump_pwm);
+
+            } else {
+
+                DEVICE_LOG("rc not exist channel 9.");
+            }
+        }
+    }
+
 	_cycle_timestamp = hrt_absolute_time();
+
 
 #ifdef GPIO_BTN_SAFETY
 
@@ -1137,8 +1181,7 @@ PX4FMU::cycle()
 	}
 
 #endif
-	/* check arming state */
-	bool updated = false;
+    /* check arming state */
 	orb_check(_armed_sub, &updated);
 
 	if (updated) {
@@ -1210,9 +1253,8 @@ PX4FMU::cycle()
 
 #endif
 
-	bool rc_updated = false;
-
 #ifdef RC_SERIAL_PORT
+    bool rc_updated = false;
 	// This block scans for a supported serial RC input and locks onto the first one found
 	// Scan for 100 msec, then switch protocol
 	constexpr hrt_abstime rc_scan_max = 100 * 1000;
@@ -1425,18 +1467,17 @@ PX4FMU::cycle()
 			   false, false, 0);
 	}
 
+    if (rc_updated) {
+        /* lazily advertise on first publication */
+        if (_to_input_rc == nullptr) {
+            _to_input_rc = orb_advertise(ORB_ID(input_rc), &_rc_in);
+
+        } else {
+            orb_publish(ORB_ID(input_rc), _to_input_rc, &_rc_in);
+        }
+    }
 #endif  // HRT_PPM_CHANNEL
 #endif  // RC_SERIAL_PORT
-
-	if (rc_updated) {
-		/* lazily advertise on first publication */
-		if (_to_input_rc == nullptr) {
-			_to_input_rc = orb_advertise(ORB_ID(input_rc), &_rc_in);
-
-		} else {
-			orb_publish(ORB_ID(input_rc), _to_input_rc, &_rc_in);
-		}
-	}
 
 	work_queue(HPWORK, &_work, (worker_t)&PX4FMU::cycle_trampoline, this,
 		   USEC2TICK(SCHEDULE_INTERVAL - main_out_latency));
@@ -2820,6 +2861,7 @@ test(void)
 		for (unsigned i = 0; i < servo_count; i++) {
 			servo_position_t value;
 
+            if (i == 4) continue;
 			if (ioctl(fd, PWM_SERVO_GET(i), (unsigned long)&value)) {
 				err(1, "error reading PWM servo %d", i);
 			}

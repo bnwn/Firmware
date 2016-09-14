@@ -2133,6 +2133,25 @@ Sensors::rc_poll()
 			manual.transition_switch = get_rc_sw2pos_position(rc_channels_s::RC_CHANNELS_FUNCTION_TRANSITION,
 						   _parameters.rc_trans_th, _parameters.rc_trans_inv);
 
+            /* use channel 10 to switch pointatob mode */
+            if (rc_input.values[9] > 1900) {
+                manual.pointatob_switch = manual_control_setpoint_s::SWITCH_POS_ON;
+
+            }/* else if (rc_input.values[9] > 1400) {
+                manual.pointatob_switch = manual_control_setpoint_s::SWITCH_POS_MIDDLE;
+
+            }*/ else {
+                manual.pointatob_switch = manual_control_setpoint_s::SWITCH_POS_OFF;
+            }
+
+            /* use channel 11 to set point */
+            if (rc_input.values[10] > 1500) {
+                manual.pointset_switch = manual_control_setpoint_s::SWITCH_POS_ON;
+
+            } else {
+                manual.pointset_switch = manual_control_setpoint_s::SWITCH_POS_OFF;
+            }
+
 			/* publish manual_control_setpoint topic */
 			if (_manual_control_pub != nullptr) {
 				orb_publish(ORB_ID(manual_control_setpoint), _manual_control_pub, &manual);

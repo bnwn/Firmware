@@ -122,7 +122,8 @@ static const unsigned g_per_item_max_index[DM_KEY_NUM_KEYS] = {
 	DM_KEY_WAYPOINTS_OFFBOARD_0_MAX,
 	DM_KEY_WAYPOINTS_OFFBOARD_1_MAX,
 	DM_KEY_WAYPOINTS_ONBOARD_MAX,
-	DM_KEY_MISSION_STATE_MAX
+    DM_KEY_MISSION_STATE_MAX,
+    DM_KEY_POINTATOB_MAX,
 };
 
 /* Table of offset for index 0 of each item type */
@@ -702,7 +703,7 @@ task_main(int argc, char *argv[])
 		g_item_locks[i] = NULL;
 	}
 
-	g_item_locks[DM_KEY_MISSION_STATE] = &g_sys_state_mutex;
+    g_item_locks[DM_KEY_MISSION_STATE] = &g_sys_state_mutex;
 
 	g_task_should_exit = false;
 

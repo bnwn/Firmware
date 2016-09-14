@@ -31,19 +31,15 @@
  *
  ****************************************************************************/
 /**
- * @file mission.h
+ * @file pointatob.h
  *
- * Navigator mode to access missions
+ * Navigator mode to access pointatob
  *
- * @author Julian Oes <julian@oes.ch>
- * @author Thomas Gubler <thomasgubler@gmail.com>
- * @author Anton Babushkin <anton.babushkin@me.com>
- * @author Ban Siesta <bansiesta@gmail.com>
- * @author Lorenz Meier <lorenz@px4.io>
+ * @author Enigma
  */
 
-#ifndef NAVIGATOR_MISSION_H
-#define NAVIGATOR_MISSION_H
+#ifndef NAVIGATOR_POINTATOB_H
+#define NAVIGATOR_POINTATOB_H
 
 #include <drivers/drv_hrt.h>
 
@@ -66,12 +62,12 @@
 
 class Navigator;
 
-class Mission : public MissionBlock
+class PointAToB : public MissionBlock
 {
 public:
-	Mission(Navigator *navigator, const char *name);
+    PointAToB(Navigator *navigator, const char *name);
 
-	virtual ~Mission();
+    virtual ~PointAToB();
 
 	virtual void on_inactive();
 
@@ -93,6 +89,11 @@ public:
 	};
 
 private:
+    /**
+     * Get next waypoint from direction and distance
+     */
+    void get_next_waypoint();
+
 	/**
 	 * Update onboard mission topic
 	 */
@@ -236,6 +237,9 @@ private:
 	control::BlockParamInt _param_yawmode;
 	control::BlockParamInt _param_force_vtol;
 	control::BlockParamFloat _param_fw_climbout_diff;
+    control::BlockParamInt _param_turn_direction;
+    control::BlockParamInt _param_interval_distance;
+    control::BlockParamInt _param_flight_altitude;
 
 	struct mission_s _onboard_mission;
 	struct mission_s _offboard_mission;

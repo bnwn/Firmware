@@ -55,6 +55,7 @@ set(msg_file_names
 	fence.msg
 	fence_vertex.msg
 	filtered_bottom_flow.msg
+        flowmeter_sensor.msg
 	follow_target.msg
 	fw_pos_ctrl_status.msg
 	fw_virtual_attitude_setpoint.msg

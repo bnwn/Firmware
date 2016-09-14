@@ -13,6 +13,7 @@ uint8 RC_INPUT_SOURCE_PX4FMU_SUMD = 11
 uint8 RC_INPUT_SOURCE_PX4FMU_DSM = 12
 uint8 RC_INPUT_SOURCE_PX4IO_SUMD = 13
 
+uint16 PUMP_WORKING_PWM = 1200      # pump working pwm
 uint8 RC_INPUT_MAX_CHANNELS = 18 	# Maximum number of R/C input channels in the system. S.Bus has up to 18 channels.
 
 uint64 timestamp_publication		# publication time

@@ -208,12 +208,12 @@ transition_result_t arming_state_transition(struct vehicle_status_s *status,
 
 						// Fail transition if we need safety switch press
 
-					} else if (safety->safety_switch_available && !safety->safety_off) {
+                    } else if (safety->safety_switch_available && !safety->safety_off) {
 
 						mavlink_and_console_log_critical(mavlink_log_pub, "NOT ARMING: Press safety switch first!");
-						feedback_provided = true;
+						feedback_provided = true;   
 						valid_transition = false;
-					}
+                    }
 
 					// Perform power checks only if circuit breaker is not
 					// engaged for these checks
@@ -378,11 +378,11 @@ main_state_transition(struct vehicle_status_s *status, main_state_t new_main_sta
 
 	case commander_state_s::MAIN_STATE_ALTCTL:
 
-		/* need at minimum altitude estimate */
-		if (status_flags->condition_local_altitude_valid ||
-		    status_flags->condition_global_position_valid) {
-			ret = TRANSITION_CHANGED;
-		}
+        /* need at minimum altitude estimate */
+        if (status_flags->condition_local_altitude_valid ||
+            status_flags->condition_global_position_valid) {
+            ret = TRANSITION_CHANGED;
+        }
 
 		break;
 
@@ -406,17 +406,27 @@ main_state_transition(struct vehicle_status_s *status, main_state_t new_main_sta
 		break;
 
 	case commander_state_s::MAIN_STATE_AUTO_FOLLOW_TARGET:
-	case commander_state_s::MAIN_STATE_AUTO_MISSION:
+    case commander_state_s::MAIN_STATE_AUTO_MISSION:
 	case commander_state_s::MAIN_STATE_AUTO_RTL:
 	case commander_state_s::MAIN_STATE_AUTO_TAKEOFF:
 	case commander_state_s::MAIN_STATE_AUTO_LAND:
 
 		/* need global position and home position */
-		if (status_flags->condition_global_position_valid && status_flags->condition_home_position_valid) {
-			ret = TRANSITION_CHANGED;
-		}
+        if (status_flags->condition_global_position_valid && status_flags->condition_home_position_valid) {
+            ret = TRANSITION_CHANGED;
+        }
 
 		break;
+
+
+    case commander_state_s::MAIN_STATE_AUTO_POINTATOB:
+
+        /* need global position and home position and set point A and B */
+        if (status_flags->condition_global_position_valid && status_flags->condition_home_position_valid && status_flags->condition_pointatob_enabled) {
+            ret = TRANSITION_CHANGED;
+        }
+
+        break;
 
 	case commander_state_s::MAIN_STATE_OFFBOARD:
 
@@ -432,6 +442,8 @@ main_state_transition(struct vehicle_status_s *status, main_state_t new_main_sta
 		break;
 	}
 
+//    /* break piont test */
+//    ret = TRANSITION_CHANGED;
 	if (ret == TRANSITION_CHANGED) {
 		if (internal_state->main_state != new_main_state) {
 			main_state_prev = internal_state->main_state;

@@ -151,3 +151,49 @@ PARAM_DEFINE_INT32(SYS_PARAM_VER, 1);
  * @group System
  */
 PARAM_DEFINE_INT32(SYS_LOGGER, 0);
+
+/**
+ * Set farming mode
+ *
+ * @value 0 off
+ * @value 1 on(default)
+ * @min 0
+ * @max 1
+ * @reboot_required true
+ * @group System
+ */
+PARAM_DEFINE_INT32(FARMING_MISSION, 1);
+
+/**
+ * Point A to B turn direction
+ *
+ * @value 1 right(default)
+ * @value -1 left
+ * @min -1
+ * @max 1
+ * @reboot_required true
+ * @group System
+ */
+PARAM_DEFINE_INT32(ATOB_TURN_DIRECTION, 0);
+
+/**
+ * Point A to B interval distance(m)
+ *
+ * @value 5 (default)
+ * @min 0
+ * @max 100
+ * @reboot_required true
+ * @group System
+ */
+PARAM_DEFINE_INT32(ATOB_INTERVAL_DISTANCE, 5);
+
+/**
+ * Point A to B relative altitude(m)
+ *
+ * @value 0 (default)
+ * @min 0
+ * @max 100
+ * @reboot_required true
+ * @group System
+ */
+PARAM_DEFINE_INT32(ATOB_FLIGHT_ALTITUDE, 0);

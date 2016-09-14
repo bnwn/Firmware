@@ -31,17 +31,11 @@
  *
  ****************************************************************************/
 /**
- * @file navigator_mission.cpp
+ * @file navigator_pointatob.cpp
  *
- * Helper class to access missions
+ * Helper class to access pointatob
  *
- * @author Julian Oes <julian@oes.ch>
- * @author Thomas Gubler <thomasgubler@gmail.com>
- * @author Anton Babushkin <anton.babushkin@me.com>
- * @author Ban Siesta <bansiesta@gmail.com>
- * @author Simon Wilks <simon@uaventure.com>
- * @author Andreas Antener <andreas@uaventure.com>
- * @author Sander Smeets <sander@droneslab.com>
+ * @author Enigma
  */
 
 #include <sys/types.h>
@@ -67,10 +61,10 @@
 #include <uORB/topics/mission.h>
 #include <uORB/topics/mission_result.h>
 
-#include "mission.h"
+#include "pointatob.h"
 #include "navigator.h"
 
-Mission::Mission(Navigator *navigator, const char *name) :
+PointAToB::PointAToB(Navigator *navigator, const char *name) :
 	MissionBlock(navigator, name),
 	_param_onboard_enabled(this, "MIS_ONBOARD_EN", false),
 	_param_takeoff_alt(this, "MIS_TAKEOFF_ALT", false),
@@ -79,6 +73,9 @@ Mission::Mission(Navigator *navigator, const char *name) :
 	_param_yawmode(this, "MIS_YAWMODE", false),
 	_param_force_vtol(this, "VT_NAV_FORCE_VT", false),
 	_param_fw_climbout_diff(this, "FW_CLMBOUT_DIFF", false),
+    _param_turn_direction(this, "ATOB_TURN_DIRECTION", false),
+    _param_interval_distance(this, "ATOB_INTERVAL_DISTANCE", false),
+    _param_flight_altitude(this, "ATOB_FLIGHT_ALTITUDE", false),
 	_onboard_mission{},
 	_offboard_mission{},
 	_current_onboard_mission_index(-1),
@@ -98,12 +95,12 @@ Mission::Mission(Navigator *navigator, const char *name) :
 	updateParams();
 }
 
-Mission::~Mission()
+PointAToB::~PointAToB()
 {
 }
 
 void
-Mission::on_inactive()
+PointAToB::on_inactive()
 {
     /* stop pump when is not mission mode */
     //stop_pump();
@@ -175,14 +172,14 @@ Mission::on_inactive()
 }
 
 void
-Mission::on_activation()
+PointAToB::on_activation()
 {
 //    start_pump();
 	set_mission_items();
 }
 
 void
-Mission::on_active()
+PointAToB::on_active()
 {
 	check_mission_valid(false);
 

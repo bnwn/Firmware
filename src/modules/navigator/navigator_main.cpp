@@ -154,6 +154,7 @@ Navigator::Navigator() :
 	_engineFailure(this, "EF"),
 	_gpsFailure(this, "GPSF"),
 	_follow_target(this, "TAR"),
+    _pointatob(this, "ATOB"),
 	_param_loiter_radius(this, "LOITER_RAD"),
 	_param_acceptance_radius(this, "ACC_RAD"),
 	_param_fw_alt_acceptance_radius(this, "FW_ALT_RAD"),
@@ -177,6 +178,7 @@ Navigator::Navigator() :
 	_navigation_mode_array[7] = &_takeoff;
 	_navigation_mode_array[8] = &_land;
 	_navigation_mode_array[9] = &_follow_target;
+    _navigation_mode_array[10] = &_pointatob;
 
 	updateParams();
 }
@@ -675,16 +677,43 @@ Navigator::status()
 	// 	warnx("Compass heading in degrees %5.5f", (double)(_global_pos.yaw * M_RAD_TO_DEG_F));
 	// }
 
-	if (_geofence.valid()) {
-		warnx("Geofence is valid");
-		/* TODO: needed? */
-//		warnx("Vertex longitude latitude");
-//		for (unsigned i = 0; i < _fence.count; i++)
-//		warnx("%6u %9.5f %8.5f", i, (double)_fence.vertices[i].lon, (double)_fence.vertices[i].lat);
+    struct pollfd fdstd;
 
-	} else {
-		warnx("Geofence not set (no /etc/geofence.txt on microsd) or not valid");
-	}
+    fdstd.fd = 0; /* stdin */
+
+    fdstd.events = POLLIN;
+
+    while (1) {
+        /* Check if user wants to quit */
+        char c;
+        int ret = poll(&fdstd, 1, 0);
+
+        if (ret > 0) {
+
+            read(0, &c, 1);
+
+            if (c == 0x03 || c == 0x63 || c == 'q') {
+                warnx("User abort\n");
+                break;
+            }
+        }
+
+        sleep(1);
+
+        if (_geofence.valid()) {
+            warnx("Geofence is valid");
+            /* TODO: needed? */
+    //		warnx("Vertex longitude latitude");
+    //		for (unsigned i = 0; i < _fence.count; i++)
+    //		warnx("%6u %9.5f %8.5f", i, (double)_fence.vertices[i].lon, (double)_fence.vertices[i].lat);
+
+        } else {
+            warnx("Geofence not set (no /etc/geofence.txt on microsd) or not valid");
+        }
+
+        warnx("nav_state: %d .\n", _vstatus.nav_state);
+        warnx("pesticle_remaining: %d . \npesticide_spraying: %d .", _vstatus.pesticide_remaining, _vstatus.pesticide_spraying);
+    }
 }
 
 void

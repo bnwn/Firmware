@@ -51,7 +51,8 @@ px4_add_module(
 		rcloss.cpp
 		enginefailure.cpp
 		gpsfailure.cpp
-		follow_target.cpp
+                follow_target.cpp
+                pointatob.cpp
 	DEPENDS
 		platforms__common
 	)

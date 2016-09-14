@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2013, 2014 PX4 Development Team. All rights reserved.
+ *   Copyright (C) 2016 Enigma Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,51 +32,47 @@
  ****************************************************************************/
 
 /**
- * @file commander_helper.h
- * Commander helper functions definitions
- *
- * @author Thomas Gubler <thomasgubler@student.ethz.ch>
- * @author Julian Oes <julian@oes.ch>
+ * @file Flowmeter driver interface.
  */
 
-#ifndef COMMANDER_HELPER_H_
-#define COMMANDER_HELPER_H_
+#ifndef _DRV_FLOWMETER_H
+#define _DRV_FLOWMETER_H
 
-#include <uORB/uORB.h>
-#include <uORB/topics/vehicle_status.h>
-#include <uORB/topics/actuator_armed.h>
-#include <uORB/topics/vehicle_control_mode.h>
-#include <drivers/drv_rgbled.h>
+#include <stdint.h>
+#include <sys/ioctl.h>
 
-bool is_multirotor(const struct vehicle_status_s *current_status);
-bool is_rotary_wing(const struct vehicle_status_s *current_status);
-bool is_vtol(const struct vehicle_status_s *current_status);
+#include "drv_sensor.h"
+#include "drv_orb_dev.h"
 
-int buzzer_init(void);
-void buzzer_deinit(void);
+#define FLOWMETER_BASE_DEVICE_PATH	"/dev/flowmeter"
 
-void set_tune_override(int tune);
-void set_tune(int tune);
-void tune_home_set(bool use_buzzer);
-void tune_mission_ok(bool use_buzzer);
-void tune_mission_fail(bool use_buzzer);
-void tune_positive(bool use_buzzer);
-void tune_neutral(bool use_buzzer);
-void tune_negative(bool use_buzzer);
+/* Flowmeter conversion multiple */
+/* #define FLOWMETER_HZ16WA */
 
-int blink_msg_state();
+#define FLOWMETER_A68_1
 
-int led_init(void);
-void led_deinit(void);
-int led_toggle(int led);
-int led_on(int led);
-int led_off(int led);
+#ifdef FLOWMETER_HZ16WA
+#define FLOWMETER_CONVERSION_COEFFICIENT 16
+#endif
+#ifdef FLOWMETER_A68_1
+#define FLOWMETER_CONVERSION_COEFFICIENT 25
+#endif
 
-void rgbled_set_color(rgbled_color_t color);
-void rgbled_set_mode(rgbled_mode_t mode);
-void rgbled_set_pattern(rgbled_pattern_t *pattern);
+/*
+ * ioctl() definitions
+ *
+ * Flowmeter drivers also implement the generic sensor driver
+ * interfaces from drv_sensor.h
+ */
 
-unsigned long get_pump_status();
-void stop_pump();
+#define _FLOWMETERIOCBASE			(0x8000)
+#define __FLOWMETERIOC(_n)			(_PX4_IOC(_FLOWMETERIOCBASE, _n))
 
-#endif /* COMMANDER_HELPER_H_ */
+/** set the minimum effective flowrate of the device */
+#define FLOWMETERIOCSETMINIMUMFLOWRATE	__FLOWMETERIOC(1)
+
+/** set the maximum effective flowrate of the device */
+#define FLOWMETERIOCSETMAXIMUMFLOWRATE	__FLOWMETERIOC(2)
+
+
+#endif /* _DRV_FLOWMETER_H */

@@ -1,6 +1,6 @@
 ############################################################################
 #
-#   Copyright (c) 2015-2016 PX4 Development Team. All rights reserved.
+#   Copyright (c) 2016 Enigma Development Team. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -31,16 +31,14 @@
 #
 ############################################################################
 px4_add_module(
-	MODULE drivers__pwm_out_rc_in
-	MAIN pwm_out_rc_in
+	MODULE drivers__hz16wa
+	MAIN hz16wa
 	STACK_MAIN 1200
-	STACK_MAX 1200
 	COMPILE_FLAGS
 		-Os
-		-DMAVLINK_COMM_NUM_BUFFERS=1
 	SRCS
-		pwm_out_rc_in.cpp
+		hz16wa.cpp
 	DEPENDS
 		platforms__common
 	)
-# vim: set noet ft=cmake fenc=utf-8 ff=unix :
+# vim: set noet ft=cmake fenc=utf-8 ff=unix : 
