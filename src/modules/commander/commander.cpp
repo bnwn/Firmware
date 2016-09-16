@@ -305,6 +305,11 @@ int8_t reset_current_point_atob(double lat_now, double lon_now);
  */
 void point_atob_init();
 
+/**
+ * save break point when pesticide isn't remaining if in point A to B mode
+ */
+int8_t handle_break_point(double lat_now, double lon_now, double alt_now);
+
 int commander_main(int argc, char *argv[])
 {
 	if (argc < 2) {
@@ -2945,6 +2950,16 @@ int commander_thread_main(int argc, char *argv[])
                     orb_publish(ORB_ID(offboard_mission), mission_pub, &mission);
                 }
                 dm_unlock(DM_KEY_MISSION_STATE);
+
+                /* save current position in point A to B mode */
+            } else if (main_state_prev == commander_state_s::MAIN_STATE_AUTO_POINTATOB && !break_point_set_up) {
+                if (handle_break_point(global_position.lat, global_position.lon, global_position.alt - _home.alt)) {
+                    break_point_set_up = true;
+
+                    /* not supposed to happen */
+                } else {
+                    print_point_set_status(POINT_SET_FAILURE, "break point save error in point A to B");
+                }
             }
 
         } else {        
@@ -4444,4 +4459,25 @@ void point_atob_init()
     }
 
     status_flags.condition_pointatob_enabled = false;
+}
+
+uint8_t handle_break_point(double lat_now, double lon_now, double alt_now)
+{
+    struct pointatob_item_s point_item_current;
+    size_t len = sizeof(pointatob_item_s);
+
+    if (dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_CURRENT, &point_item_current, len) != len) {
+        return -1;
+    }
+
+    point_item_current.altitude = alt_now;
+    point_item_current.altitude_is_relative = true;
+    point_item_current.lat = lat_now;
+    point_item_current.lon = lon_now;
+
+    if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_CURRENT, DM_PERSIST_POWER_ON_RESET, &point_item_current, len) != len) {
+        return -1;
+    }
+
+    return 1;
 }
