@@ -2506,7 +2506,7 @@ int commander_thread_main(int argc, char *argv[])
                         if (reset_current_point_atob(global_position.lat, global_position.lon)) {
                             print_point_set_status(POINT_RESET_SUCCESS, "current point reset success.");
 
-                            /* restart point A to B mission */
+                            /* restart point A to B mission if reset failed */
                         } else {
                             point_atob_init();
                         }
@@ -4295,7 +4295,7 @@ void *commander_low_prio_loop(void *arg)
 
 int8_t reset_current_point_atob(double lat_now, double lon_now)
 {
-    struct pointatob_item_s point_item_a, point_item_b, point_item_tmp;
+    struct pointatob_item_s point_item_a, point_item_b, point_item_current, point_item_next, point_item_tmp;
     const size_t len = sizeof(pointatob_item_s);
     float distance_atoc, distance_btoc;
 
@@ -4315,14 +4315,14 @@ int8_t reset_current_point_atob(double lat_now, double lon_now)
     distance_btoc = get_distance_to_next_waypoint(point_item_b.lat, point_item_b.lon, lat_now, lon_now);
 
     /* get the shorter distance point */
-    point_item_a = (distance_atoc <= distance_btoc) ? point_item_a : point_item_b;
+    point_item_tmp = (distance_atoc <= distance_btoc) ? point_item_a : point_item_b;
     float distance_min = (distance_atoc <= distance_btoc) ? distance_atoc : distance_btoc;
 
     /* calculate angle error between bearing A to B and the closer point to C. */
-    float angle_error = fabsf(point_item_a.turn_bearing - get_bearing_to_next_waypoint(point_item_a.lat, point_item_a.lon, lat_now, lon_now));
+    float angle_error = fabsf(point_item_tmp.turn_bearing - get_bearing_to_next_waypoint(point_item_tmp.lat, point_item_tmp.lon, lat_now, lon_now));
 
     /* Sacrifice precision to premote excute speed */
-    int32_t distance_min_int = (int32_t) distance_min;
+    /* int32_t distance_min_int = (int32_t) distance_min;
     distance_min_int = distance_min_int * cos(angle_error);
     int32_t distance_error = distance_min_int % interval_distance;
 
@@ -4333,7 +4333,61 @@ int8_t reset_current_point_atob(double lat_now, double lon_now)
         distance_min_int = distance_min_int - distance_error;
     }
 
-    waypoint_from_heading_and_distance(point_item_a.lat, point_item_a.lon, point_item_a.turn_bearing, (float)distance_min_int, &point_item_tmp.lat, &point_item_tmp.lon);
+    waypoint_from_heading_and_distance(point_item_tmp.lat, point_item_tmp.lon, point_item_tmp.turn_bearing, (float)distance_min_int, &point_item_tmp.lat, &point_item_tmp.lon);
+    */
+
+    /* use float minium distance to calculate closest point C */
+    distance_min = distance_min * cos(angle_error);
+    float distance_error = distance_min % interval_distance;
+
+    if ((distance_error * 2) >= interval_distance) {
+        distance_min = distance_min - distance_error + interval_distance;
+
+    } else {
+        distance_min = distance_min - distance_error;
+    }
+
+    waypoint_from_heading_and_distance(point_item_tmp.lat, point_item_tmp.lon, point_item_tmp.turn_bearing, distance_min, &point_item_current.lat, &point_item_current.lon);
+
+    point_item_current.altitude = point_item_a.altitude;
+    point_item_current.altitude_is_relative = true;
+    point_item_current.distance_multiple = (int32_t)(distance_min / interval_distance);
+    point_item_current.current_seq = point_item_a.current_seq ? ((point_item_current.distance_multiple % 2) ^ 1) : (point_item_current.distance_multiple % 2);
+
+    /* Current point write failed */
+    if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_CURRENT, DM_PERSIST_POWER_ON_RESET, &point_item_current, len) != len) {
+        return -1;
+    }
+
+    /* generate next point */
+    point_item_next.current_seq = point_item_current.current_seq ^ 1;
+
+    /* next point on the same side with current point */
+    if (1 == point_item_current.current_seq) {
+        point_item_next.distance_multiple = point_item_current.distance_multiple + 1;
+
+        /* next point on the offside with current point */
+    } else {
+        point_item_next.distance_multiple = point_item_current.distance_multiple;
+    }
+
+    /* estimate whether the current on the same side with point A or B */
+    if (point_item_current.distance_multiple % 2 == point_item_current.current_seq) {
+        /* next point on the same side with point A */
+        point_item_tmp = point_item_a;
+
+        /* next point on the same side with point B */
+    } else {
+        point_item_tmp = point_item_b;
+    }
+
+    point_item_next.altitude = point_item_tmp.altitude;
+    point_item_next.altitude_is_relative = point_item_tmp.altitude_is_relative;
+
+    waypoint_from_heading_and_distance(point_item_tmp.lat, point_item_tmp.lon, point_item_tmp.turn_bearing, \
+                                       (float)(point_item_next.distance_multiple * interval_distance), &point_item_next.lat, &point_item_next.lon);
+
+    return 1;
 }
 
 void point_atob_init()
@@ -4352,6 +4406,7 @@ void point_atob_init()
         if (dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_B, &point_item_b, len) == len) {
             /* get point A to B bearing */
             bearing_atob = get_bearing_to_next_waypoint(point_item_a.lat, point_item_a.lon, point_item_b.lat, point_item_b.lon);
+
             point_item_a.turn_bearing = point_item_b.turn_bearing = bearing_atob + turn_direction * M_PI_2_F;
 
             if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_A, DM_PERSIST_POWER_ON_RESET, &point_item_a, len) == len) {
