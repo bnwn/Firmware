@@ -120,8 +120,13 @@ struct pointatob_item_s {
         double lon;			/**< longitude in degrees				*/
         float altitude;			/**< altitude in meters	(AMSL)			*/
         float yaw;			/**< in radians NED -PI..+PI, NAN means don't change yaw		*/
+<<<<<<< HEAD
         float loiter_radius;		/**< loiter radius in meters, 0 for a VTOL to hover     */
         int8_t loiter_direction;	/**< 1: positive / clockwise, -1, negative.		*/
+=======
+        uint64_t current_seq;           /**< waypoint current seq, in radians -PI..+PI          */
+        float turn_bearing;             /**< vehicle turn bearing                               */
+>>>>>>> 742ab09188632edde50e2aadc1353abde2a4c784
         bool loiter_exit_xtrack;	/**< exit xtrack location: 0 for center of loiter wp, 1 for exit location */
         float acceptance_radius;	/**< default radius in which the mission is accepted as reached in meters */
         float time_inside;		/**< time that the MAV should stay inside the radius before advancing in seconds */

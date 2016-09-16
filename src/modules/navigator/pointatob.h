@@ -89,6 +89,14 @@ public:
 	};
 
 private:
+<<<<<<< HEAD
+=======
+    /**
+     * Get next waypoint from direction and distance
+     */
+    void get_next_waypoint();
+
+>>>>>>> 742ab09188632edde50e2aadc1353abde2a4c784
 	/**
 	 * Update onboard mission topic
 	 */
@@ -232,6 +240,12 @@ private:
 	control::BlockParamInt _param_yawmode;
 	control::BlockParamInt _param_force_vtol;
 	control::BlockParamFloat _param_fw_climbout_diff;
+<<<<<<< HEAD
+=======
+    control::BlockParamInt _param_turn_direction;
+    control::BlockParamInt _param_interval_distance;
+    control::BlockParamInt _param_flight_altitude;
+>>>>>>> 742ab09188632edde50e2aadc1353abde2a4c784
 
 	struct mission_s _onboard_mission;
 	struct mission_s _offboard_mission;

@@ -31,6 +31,7 @@
  *
  ****************************************************************************/
 /**
+<<<<<<< HEAD
  * @file navigator_mission.cpp
  *
  * Helper class to access missions
@@ -42,6 +43,13 @@
  * @author Simon Wilks <simon@uaventure.com>
  * @author Andreas Antener <andreas@uaventure.com>
  * @author Sander Smeets <sander@droneslab.com>
+=======
+ * @file navigator_pointatob.cpp
+ *
+ * Helper class to access pointatob
+ *
+ * @author Enigma
+>>>>>>> 742ab09188632edde50e2aadc1353abde2a4c784
  */
 
 #include <sys/types.h>
@@ -67,10 +75,17 @@
 #include <uORB/topics/mission.h>
 #include <uORB/topics/mission_result.h>
 
+<<<<<<< HEAD
 #include "mission.h"
 #include "navigator.h"
 
 Mission::Mission(Navigator *navigator, const char *name) :
+=======
+#include "pointatob.h"
+#include "navigator.h"
+
+PointAToB::PointAToB(Navigator *navigator, const char *name) :
+>>>>>>> 742ab09188632edde50e2aadc1353abde2a4c784
 	MissionBlock(navigator, name),
 	_param_onboard_enabled(this, "MIS_ONBOARD_EN", false),
 	_param_takeoff_alt(this, "MIS_TAKEOFF_ALT", false),
@@ -79,6 +94,12 @@ Mission::Mission(Navigator *navigator, const char *name) :
 	_param_yawmode(this, "MIS_YAWMODE", false),
 	_param_force_vtol(this, "VT_NAV_FORCE_VT", false),
 	_param_fw_climbout_diff(this, "FW_CLMBOUT_DIFF", false),
+<<<<<<< HEAD
+=======
+    _param_turn_direction(this, "ATOB_TURN_DIRECTION", false),
+    _param_interval_distance(this, "ATOB_INTERVAL_DISTANCE", false),
+    _param_flight_altitude(this, "ATOB_FLIGHT_ALTITUDE", false),
+>>>>>>> 742ab09188632edde50e2aadc1353abde2a4c784
 	_onboard_mission{},
 	_offboard_mission{},
 	_current_onboard_mission_index(-1),
@@ -98,12 +119,20 @@ Mission::Mission(Navigator *navigator, const char *name) :
 	updateParams();
 }
 
+<<<<<<< HEAD
 Mission::~Mission()
+=======
+PointAToB::~PointAToB()
+>>>>>>> 742ab09188632edde50e2aadc1353abde2a4c784
 {
 }
 
 void
+<<<<<<< HEAD
 Mission::on_inactive()
+=======
+PointAToB::on_inactive()
+>>>>>>> 742ab09188632edde50e2aadc1353abde2a4c784
 {
     /* stop pump when is not mission mode */
     //stop_pump();
@@ -175,14 +204,22 @@ Mission::on_inactive()
 }
 
 void
+<<<<<<< HEAD
 Mission::on_activation()
+=======
+PointAToB::on_activation()
+>>>>>>> 742ab09188632edde50e2aadc1353abde2a4c784
 {
 //    start_pump();
 	set_mission_items();
 }
 
 void
+<<<<<<< HEAD
 Mission::on_active()
+=======
+PointAToB::on_active()
+>>>>>>> 742ab09188632edde50e2aadc1353abde2a4c784
 {
 	check_mission_valid(false);
 
