@@ -129,17 +129,11 @@ typedef enum VEHICLE_MODE_FLAG
 
 typedef enum POINT_SET_FLAG
 {
-<<<<<<< HEAD
-    POINT_SET_FAILURE=1,
-    POINT_A_SET_SUCCESS=2,
-    POINT_B_SET_SUCCESS=3,
-=======
     POINT_A_SET_SUCCESS=0,
     POINT_B_SET_SUCCESS=1,
     POINT_SET_FAILURE=2,
     POINT_CLEAR_SUCCESS=3,
     POINT_RESET_SUCCESS=4,
->>>>>>> 742ab09188632edde50e2aadc1353abde2a4c784
 } POINT_SET_FLAG;
 
 static constexpr uint8_t COMMANDER_MAX_GPS_NOISE = 60;		/**< Maximum percentage signal to noise ratio allowed for GPS reception */
@@ -1441,10 +1435,7 @@ int commander_thread_main(int argc, char *argv[])
     /* Start point setting loop */
     unsigned switch_on_counter = 0;
     bool switch_long_hold = false;
-<<<<<<< HEAD
-=======
     unsigned point_current_seq = 0;
->>>>>>> 742ab09188632edde50e2aadc1353abde2a4c784
 
 	bool low_battery_voltage_actions_done = false;
 	bool critical_battery_voltage_actions_done = false;
@@ -2487,13 +2478,10 @@ int commander_thread_main(int argc, char *argv[])
             if (sp_man.pointset_switch == manual_control_setpoint_s::SWITCH_POS_ON) {
                 /* hold a long time to clear A and B point */
                 if (switch_on_counter > rc_arm_hyst && land_detector.landed) {
-<<<<<<< HEAD
-=======
                     dm_clear(DM_KEY_POINTATOB);
                     print_point_set_status(POINT_CLEAR_SUCCESS, "point item clear up.");
 
                     status_flags.condition_pointatob_enabled = false;
->>>>>>> 742ab09188632edde50e2aadc1353abde2a4c784
 
                     switch_long_hold = true;
                     switch_on_counter = 0;
@@ -2510,14 +2498,6 @@ int commander_thread_main(int argc, char *argv[])
 
                 /* do point handle only if global position is valid */
                 if (status_flags.condition_global_position_valid && switch_on_counter > 0) {
-<<<<<<< HEAD
-                    /* hold a little time to reset takeoff point if landed */
-                    if (land_detector.landed) {
-
-                        /* hold a little time to set A and B point if on air */
-                    } else {
-
-=======
                     /* hold a little time to reset current point if landed and point A to B mode is enabled */
                     if (land_detector.landed && status_flags.condition_pointatob_enabled) {
                         pointatob_item_s point_item_tmp;
@@ -2556,16 +2536,11 @@ int commander_thread_main(int argc, char *argv[])
                             /* not supposed to happen unless the datamanager can not access the SD card */
                             print_point_set_status(POINT_SET_FAILURE, "saving point item failed.");
                         }
->>>>>>> 742ab09188632edde50e2aadc1353abde2a4c784
                     }
 
                     /* warning tune and blink if switch on counter larger zero and global position is invalid */
                 } else if (switch_on_counter > 0) {
-<<<<<<< HEAD
-
-=======
                     print_point_set_status(POINT_SET_FAILURE, "It's not have global position.");
->>>>>>> 742ab09188632edde50e2aadc1353abde2a4c784
                 }
 
                 switch_on_counter = 0;
@@ -3963,11 +3938,8 @@ print_point_set_status(POINT_SET_FLAG pflag, const char *msg)
             tune_neutral(true);
             break;
         case POINT_B_SET_SUCCESS:
-<<<<<<< HEAD
-=======
         case POINT_RESET_SUCCESS:
         case POINT_CLEAR_SUCCESS:
->>>>>>> 742ab09188632edde50e2aadc1353abde2a4c784
             tune_positive(true);
             break;
         default:
