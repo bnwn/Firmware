@@ -2853,13 +2853,13 @@ int commander_thread_main(int argc, char *argv[])
         /* return home if pesticide is not remaining (when vehicle status is MISSION) */
         if (!status.pesticide_remaining && status.pesticide_spraying && !land_detector.landed && status.nav_state != commander_state_s::MAIN_STATE_AUTO_RTL) {
             /* return */
-            main_state_transition(&status, commander_state_s::MAIN_STATE_AUTO_RTL, main_state_prev, &status_flags, &internal_state);
+            transition_result_t transition_state = main_state_transition(&status, commander_state_s::MAIN_STATE_AUTO_RTL, main_state_prev, &status_flags, &internal_state);
 
             /* stop the pump if pesticide is not remaining */
             stop_pump();
 
             /* save current local position*/
-            if (main_state_prev == commander_state_s::MAIN_STATE_AUTO_MISSION && !break_point_set_up) {
+            if (TRANSITION_CHANGED == transition_state && main_state_prev == commander_state_s::MAIN_STATE_AUTO_MISSION && !break_point_set_up) {
             //if (!break_point_set_up) {
                 dm_lock(DM_KEY_MISSION_STATE);
                 if (dm_read(DM_KEY_MISSION_STATE, 0, &mission, sizeof(mission_s)) == sizeof(mission_s)) {
@@ -2952,7 +2952,7 @@ int commander_thread_main(int argc, char *argv[])
                 dm_unlock(DM_KEY_MISSION_STATE);
 
                 /* save current position in point A to B mode */
-            } else if (main_state_prev == commander_state_s::MAIN_STATE_AUTO_POINTATOB && !break_point_set_up) {
+            } else if (TRANSITION_CHANGED == transition_state && main_state_prev == commander_state_s::MAIN_STATE_AUTO_POINTATOB && !break_point_set_up) {
                 if (handle_break_point(global_position.lat, global_position.lon, global_position.alt - _home.alt)) {
                     break_point_set_up = true;
 
