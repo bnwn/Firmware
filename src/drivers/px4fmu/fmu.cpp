@@ -1119,7 +1119,8 @@ PX4FMU::cycle()
         orb_copy(ORB_ID(vehicle_status), _vehicle_status_sub, &_vehicle_status);
     }
 
-    if (_vehicle_status.nav_state != vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION) {
+//    if (_vehicle_status.nav_state != vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION) {
+    if (true) {
         /* set AUX4 to control pump, cannot not use mix */
         orb_check(_rc_input_sub, &updated);
 

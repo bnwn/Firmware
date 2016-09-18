@@ -307,7 +307,7 @@ MissionBlock::is_mission_item_reached()
 
         if (!_starting_point_reached) {
             _starting_point_reached = true;
-            start_pump();
+//            start_pump();
         }
 
 		/* check if the MAV was long enough inside the waypoint orbit */
