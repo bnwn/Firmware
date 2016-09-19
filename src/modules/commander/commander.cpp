@@ -2738,10 +2738,10 @@ int commander_thread_main(int argc, char *argv[])
                             dm_item = DM_KEY_WAYPOINTS_OFFBOARD(mission.dataman_id);
 
                             int offset = 1;
-                            const int new_count = mission.count - mission.current_seq;
+                            const int new_count = mission.count - mission_result.seq_current;
                             for (; offset<=new_count; offset++) {
                                 /* read mission item from datamanager */
-                                if (dm_read(dm_item, mission.current_seq-1+offset, &mission_item_tmp,len) != len) {
+                                if (dm_read(dm_item, mission_result.seq_current-1+offset, &mission_item_tmp,len) != len) {
                                     /* not supposed to happen unless the datamanager can not access the SD card */
                                     mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point1");
                                     mission.dataman_id = 0;
@@ -2792,8 +2792,8 @@ int commander_thread_main(int argc, char *argv[])
                             }
 
                             /* set mission count if all item write successful */
-                            if (offset > (mission.count - mission.current_seq)) {
-                                mission.count = mission.count - mission.current_seq;
+                            if (offset > new_count) {
+                                mission.count = new_count;
                                 break_point_set_up = true;
                             }
                         }
