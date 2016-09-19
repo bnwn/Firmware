@@ -2811,9 +2811,12 @@ int commander_thread_main(int argc, char *argv[])
                     /* initialize mission sequence in dataman */
                     mission.current_seq = 0;
                     dm_write(DM_KEY_MISSION_STATE, 0, DM_PERSIST_POWER_ON_RESET, &mission, sizeof(mission_s));
+                    if (mission_pub != nullptr) {
+                        orb_publish(ORB_ID(offboard_mission), mission_pub, &mission);
 
-                    mission_pub = orb_advertise(ORB_ID(offboard_mission), &mission);
-                    orb_publish(ORB_ID(offboard_mission), mission_pub, &mission);
+                    } else {
+                        mission_pub = orb_advertise(ORB_ID(offboard_mission), &mission);
+                    }
                 }
                 dm_unlock(DM_KEY_MISSION_STATE);
             }
