@@ -2730,14 +2730,14 @@ int commander_thread_main(int argc, char *argv[])
                 dm_lock(DM_KEY_MISSION_STATE);
                 if (dm_read(DM_KEY_MISSION_STATE, 0, &mission, sizeof(mission_s)) == sizeof(mission_s)) {
                     if (mission.dataman_id >= 0 && mission.dataman_id <= 1) {
-                        if (mission.count > 0) {
+                        if (mission.count > 0 && mission_result.seq_current != 0) {
                             struct mission_item_s mission_item_tmp;
                             const ssize_t len = sizeof(struct mission_item_s);
                             /* offboard mission */
                             dm_item_t dm_item;
                             dm_item = DM_KEY_WAYPOINTS_OFFBOARD(mission.dataman_id);
 
-                            int offset = 1;
+                            int offset = 0;
                             const int new_count = mission.count - mission_result.seq_current;
                             for (; offset<=new_count; offset++) {
                                 /* read mission item from datamanager */
@@ -2750,7 +2750,7 @@ int commander_thread_main(int argc, char *argv[])
                                 }
 
                                 /* first point command set as takeoff */
-                                if (1 == offset) {
+                                if (0 == offset) {
                                     mission_item_tmp.nav_cmd = NAV_CMD::NAV_CMD_WAYPOINT;
                                     mission_item_tmp.lat = global_position.lat;
                                     mission_item_tmp.lon = global_position.lon;
@@ -2765,7 +2765,7 @@ int commander_thread_main(int argc, char *argv[])
                                 }
 
                                 /* save item from sequence head */
-                                if (dm_write(dm_item, offset-1, DM_PERSIST_POWER_ON_RESET, &mission_item_tmp, len) != len) {
+                                if (dm_write(dm_item, offset, DM_PERSIST_POWER_ON_RESET, &mission_item_tmp, len) != len) {
                                     /* not supposed to happen unless the datamanager can not access the SD card */
                                     mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point2");
                                     mission.dataman_id = 0;
@@ -2774,10 +2774,7 @@ int commander_thread_main(int argc, char *argv[])
                                 }
                             }
 
-                            for (int i=0; i<7; i++) {
-                                mission_item_tmp.params[i] = 0.0f;
-                            }
-                            mission_item_tmp.nav_cmd = NAV_CMD::NAV_CMD_IDLE;
+                            memset(&mission_item_tmp, 0, len);
 
                             /* set remaining point as IDLE */
                             for (int i=offset; i<mission.count; i++) {
