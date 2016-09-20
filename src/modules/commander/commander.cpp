@@ -2730,7 +2730,7 @@ int commander_thread_main(int argc, char *argv[])
                 dm_lock(DM_KEY_MISSION_STATE);
                 if (dm_read(DM_KEY_MISSION_STATE, 0, &mission, sizeof(mission_s)) == sizeof(mission_s)) {
                     if (mission.dataman_id >= 0 && mission.dataman_id <= 1) {
-                        if (mission.count > 0 && mission_result.seq_current != 0) {
+                        if (mission.count > 0 && mission_result.seq_current > 0) {
                             struct mission_item_s mission_item_tmp;
                             const ssize_t len = sizeof(struct mission_item_s);
                             /* offboard mission */
