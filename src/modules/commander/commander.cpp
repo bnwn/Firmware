@@ -2734,16 +2734,17 @@ int commander_thread_main(int argc, char *argv[])
                             struct mission_item_s mission_item_tmp;
                             const ssize_t len = sizeof(struct mission_item_s);
                             /* offboard mission */
-                            dm_item_t dm_item;
-                            dm_item = DM_KEY_WAYPOINTS_OFFBOARD(mission.dataman_id);
+                            dm_item_t dm_item_read, dm_item_write;
+                            dm_item_read = DM_KEY_WAYPOINTS_OFFBOARD(mission.dataman_id);
+                            dm_item_write = DM_KEY_WAYPOINTS_OFFBOARD(mission.dataman_id ^ 1);
 
                             int offset = 0;
                             const int new_count = mission.count - mission_result.seq_current;
                             for (; offset<=new_count; offset++) {
                                 /* read mission item from datamanager */
-                                if (dm_read(dm_item, mission_result.seq_current-1+offset, &mission_item_tmp,len) != len) {
+                                if (dm_read(dm_item_read, mission_result.seq_current-1+offset, &mission_item_tmp,len) != len) {
                                     /* not supposed to happen unless the datamanager can not access the SD card */
-                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point1");
+                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point");
                                     mission.dataman_id = 0;
                                     mission.count = 0;
                                     break;
@@ -2760,43 +2761,46 @@ int commander_thread_main(int argc, char *argv[])
                                 }
 
                                 /* next waypoint is no longer follow this one which is the last waypoint */
-                                if (new_count == offset) {
-                                    mission_item_tmp.autocontinue = false;
-                                }
+//                                if (new_count == offset) {
+//                                    mission_item_tmp.autocontinue = false;
+//                                }
 
                                 /* save item from sequence head */
-                                if (dm_write(dm_item, offset, DM_PERSIST_POWER_ON_RESET, &mission_item_tmp, len) != len) {
+                                if (dm_write(dm_item_write, offset, DM_PERSIST_POWER_ON_RESET, &mission_item_tmp, len) != len) {
                                     /* not supposed to happen unless the datamanager can not access the SD card */
-                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point2");
+                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point");
                                     mission.dataman_id = 0;
                                     mission.count = 0;
                                     break;
                                 }
                             }
 
-                            memset(&mission_item_tmp, 0, len);
+                            dm_clear(dm_item_read);
 
-                            /* set remaining point as IDLE */
-                            for (int i=offset; i<mission.count; i++) {
-                                /* save item from sequence head */
-                                if (dm_write(dm_item, offset, DM_PERSIST_POWER_ON_RESET, &mission_item_tmp, len) != len) {
-                                    /* not supposed to happen unless the datamanager can not access the SD card */
-                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point2");
-                                    mission.dataman_id = 0;
-                                    mission.count = 0;
-                                    break;
-                                }
-                            }
+//                            memset(&mission_item_tmp, 0, len);
+
+//                            /* set remaining point as IDLE */
+//                            for (int i=offset; i<mission.count; i++) {
+//                                /* save item from sequence head */
+//                                if (dm_write(dm_item, i, DM_PERSIST_POWER_ON_RESET, &mission_item_tmp, len) != len) {
+//                                    /* not supposed to happen unless the datamanager can not access the SD card */
+//                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point");
+                            //        mission.dataman_id = 0;
+//                                    mission.count = 0;
+//                                    break;
+//                                }
+//                            }
 
                             /* set mission count if all item write successful */
-                            if (offset > new_count) {
+                            if (offset > new_count) {                            
+                                mission.dataman_id = mission.dataman_id ^ 1;
                                 mission.count = new_count + 1;
                                 break_point_set_up = true;
                             }
                         }
 
                     } else {
-                        const char *missionfail = "reading mission state failed when save break point4";
+                        const char *missionfail = "reading mission state failed when save break point";
                         warnx("%s", missionfail);
                         mavlink_log_critical(&mavlink_log_pub, missionfail);
 
