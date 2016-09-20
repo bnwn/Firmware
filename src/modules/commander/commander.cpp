@@ -2790,7 +2790,7 @@ int commander_thread_main(int argc, char *argv[])
 
                             /* set mission count if all item write successful */
                             if (offset > new_count) {
-                                mission.count = new_count;
+                                mission.count = new_count + 1;
                                 break_point_set_up = true;
                             }
                         }
