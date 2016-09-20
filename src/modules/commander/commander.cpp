@@ -2735,8 +2735,9 @@ int commander_thread_main(int argc, char *argv[])
                             const ssize_t len = sizeof(struct mission_item_s);
                             /* offboard mission */
                             dm_item_t dm_item_read, dm_item_write;
+                            int dataman_id = mission.dataman_id ^ 1;
                             dm_item_read = DM_KEY_WAYPOINTS_OFFBOARD(mission.dataman_id);
-                            dm_item_write = DM_KEY_WAYPOINTS_OFFBOARD(mission.dataman_id ^ 1);
+                            dm_item_write = DM_KEY_WAYPOINTS_OFFBOARD(dataman_id);
 
                             int offset = 0;
                             const int new_count = mission.count - mission_result.seq_current;
@@ -2793,7 +2794,7 @@ int commander_thread_main(int argc, char *argv[])
 
                             /* set mission count if all item write successful */
                             if (offset > new_count) {                            
-                                mission.dataman_id = mission.dataman_id ^ 1;
+                                mission.dataman_id = dataman_id;
                                 mission.count = new_count + 1;
                                 break_point_set_up = true;
                             }
