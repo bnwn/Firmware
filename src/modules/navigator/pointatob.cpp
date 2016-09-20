@@ -102,9 +102,6 @@ PointAToB::~PointAToB()
 void
 PointAToB::on_inactive()
 {
-    /* stop pump when is not mission mode */
-    //stop_pump();
-
 	/* Without home a mission can't be valid yet anyway, let's wait. */
 	if (!_navigator->home_position_valid()) {
 		return;
@@ -174,7 +171,6 @@ PointAToB::on_inactive()
 void
 PointAToB::on_activation()
 {
-//    start_pump();
 	set_mission_items();
 }
 
@@ -249,95 +245,7 @@ PointAToB::on_active()
 }
 
 void
-Mission::update_onboard_mission()
-{
-	if (orb_copy(ORB_ID(onboard_mission), _navigator->get_onboard_mission_sub(), &_onboard_mission) == OK) {
-		/* accept the current index set by the onboard mission if it is within bounds */
-		if (_onboard_mission.current_seq >= 0
-		    && _onboard_mission.current_seq < (int)_onboard_mission.count) {
-			_current_onboard_mission_index = _onboard_mission.current_seq;
-
-		} else {
-			/* if less WPs available, reset to first WP */
-			if (_current_onboard_mission_index >= (int)_onboard_mission.count) {
-				_current_onboard_mission_index = 0;
-				/* if not initialized, set it to 0 */
-
-			} else if (_current_onboard_mission_index < 0) {
-				_current_onboard_mission_index = 0;
-			}
-
-			/* otherwise, just leave it */
-		}
-
-		// XXX check validity here as well
-		_navigator->get_mission_result()->valid = true;
-		/* reset mission failure if we have an updated valid mission */
-		_navigator->get_mission_result()->mission_failure = false;
-		_navigator->increment_mission_instance_count();
-		_navigator->set_mission_result_updated();
-
-	} else {
-		_onboard_mission.count = 0;
-		_onboard_mission.current_seq = 0;
-		_current_onboard_mission_index = 0;
-	}
-}
-
-void
-Mission::update_offboard_mission()
-{
-	bool failed = true;
-
-	if (orb_copy(ORB_ID(offboard_mission), _navigator->get_offboard_mission_sub(), &_offboard_mission) == OK) {
-		warnx("offboard mission updated: dataman_id=%d, count=%d, current_seq=%d", _offboard_mission.dataman_id,
-		      _offboard_mission.count, _offboard_mission.current_seq);
-
-		/* determine current index */
-		if (_offboard_mission.current_seq >= 0 && _offboard_mission.current_seq < (int)_offboard_mission.count) {
-			_current_offboard_mission_index = _offboard_mission.current_seq;
-
-		} else {
-			/* if less items available, reset to first item */
-			if (_current_offboard_mission_index >= (int)_offboard_mission.count) {
-				_current_offboard_mission_index = 0;
-
-				/* if not initialized, set it to 0 */
-
-			} else if (_current_offboard_mission_index < 0) {
-				_current_offboard_mission_index = 0;
-			}
-
-			/* otherwise, just leave it */
-		}
-
-		check_mission_valid(true);
-
-		failed = !_navigator->get_mission_result()->valid;
-
-		if (!failed) {
-			/* reset mission failure if we have an updated valid mission */
-			_navigator->get_mission_result()->mission_failure = false;
-		}
-
-	} else {
-		PX4_WARN("offboard mission update failed, handle: %d", _navigator->get_offboard_mission_sub());
-	}
-
-	if (failed) {
-		_offboard_mission.count = 0;
-		_offboard_mission.current_seq = 0;
-		_current_offboard_mission_index = 0;
-
-		warnx("mission check failed");
-	}
-
-	set_current_offboard_mission_item();
-}
-
-
-void
-Mission::advance_mission()
+PointAToB::advance_mission()
 {
 	/* do not advance mission item if we're processing sub mission work items */
 	if (_work_item_type != WORK_ITEM_TYPE_DEFAULT) {
@@ -360,7 +268,7 @@ Mission::advance_mission()
 }
 
 float
-Mission::get_absolute_altitude_for_item(struct mission_item_s &mission_item)
+PointAToB::get_absolute_altitude_for_item(struct mission_item_s &mission_item)
 {
 	if (_mission_item.altitude_is_relative) {
 		return _mission_item.altitude + _navigator->get_home_position()->alt;
@@ -371,7 +279,7 @@ Mission::get_absolute_altitude_for_item(struct mission_item_s &mission_item)
 }
 
 void
-Mission::set_mission_items()
+PointAToB::set_mission_items()
 {
 	/* make sure param is up to date */
 	updateParams();
@@ -716,7 +624,7 @@ Mission::set_mission_items()
 }
 
 bool
-Mission::do_need_takeoff()
+PointAToB::do_need_takeoff()
 {
 	if (_navigator->get_vstatus()->is_rotary_wing) {
 
@@ -750,7 +658,7 @@ Mission::do_need_takeoff()
 }
 
 bool
-Mission::do_need_move_to_land()
+PointAToB::do_need_move_to_land()
 {
 	if (_navigator->get_vstatus()->is_rotary_wing
 	    && (_mission_item.nav_cmd == NAV_CMD_LAND || _mission_item.nav_cmd == NAV_CMD_VTOL_LAND)) {
@@ -765,7 +673,7 @@ Mission::do_need_move_to_land()
 }
 
 bool
-Mission::do_need_move_to_takeoff()
+PointAToB::do_need_move_to_takeoff()
 {
 	if (_navigator->get_vstatus()->is_rotary_wing && _mission_item.nav_cmd == NAV_CMD_VTOL_TAKEOFF) {
 
@@ -779,7 +687,7 @@ Mission::do_need_move_to_takeoff()
 }
 
 void
-Mission::copy_positon_if_valid(struct mission_item_s *mission_item, struct position_setpoint_s *setpoint)
+PointAToB::copy_positon_if_valid(struct mission_item_s *mission_item, struct position_setpoint_s *setpoint)
 {
 	if (setpoint->valid) {
 		mission_item->lat = setpoint->lat;
@@ -796,7 +704,7 @@ Mission::copy_positon_if_valid(struct mission_item_s *mission_item, struct posit
 }
 
 void
-Mission::set_align_mission_item(struct mission_item_s *mission_item, struct mission_item_s *mission_item_next)
+PointAToB::set_align_mission_item(struct mission_item_s *mission_item, struct mission_item_s *mission_item_next)
 {
 	mission_item->nav_cmd = NAV_CMD_WAYPOINT;
 	copy_positon_if_valid(mission_item, &(_navigator->get_position_setpoint_triplet()->current));
@@ -812,7 +720,7 @@ Mission::set_align_mission_item(struct mission_item_s *mission_item, struct miss
 }
 
 float
-Mission::calculate_takeoff_altitude(struct mission_item_s *mission_item)
+PointAToB::calculate_takeoff_altitude(struct mission_item_s *mission_item)
 {
 	/* calculate takeoff altitude */
 	float takeoff_alt = get_absolute_altitude_for_item(*mission_item);
@@ -829,7 +737,7 @@ Mission::calculate_takeoff_altitude(struct mission_item_s *mission_item)
 }
 
 void
-Mission::heading_sp_update()
+PointAToB::heading_sp_update()
 {
 	/* we don't want to be yawing during takeoff, landing or aligning for a transition */
 	if (_mission_item.nav_cmd == NAV_CMD_TAKEOFF
@@ -913,7 +821,7 @@ Mission::heading_sp_update()
 
 
 void
-Mission::altitude_sp_foh_update()
+PointAToB::altitude_sp_foh_update()
 {
 	struct position_setpoint_triplet_s *pos_sp_triplet = _navigator->get_position_setpoint_triplet();
 
@@ -973,13 +881,13 @@ Mission::altitude_sp_foh_update()
 }
 
 void
-Mission::altitude_sp_foh_reset()
+PointAToB::altitude_sp_foh_reset()
 {
 	_min_current_sp_distance_xy = FLT_MAX;
 }
 
 void
-Mission::do_abort_landing()
+PointAToB::do_abort_landing()
 {
 	// Abort FW landing
 	//  turn the land waypoint into a loiter and stay there
@@ -1020,7 +928,7 @@ Mission::do_abort_landing()
 }
 
 bool
-Mission::prepare_mission_items(bool onboard, struct mission_item_s *mission_item,
+PointAToB::prepare_mission_items(bool onboard, struct mission_item_s *mission_item,
 			       struct mission_item_s *next_position_mission_item, bool *has_next_position_item)
 {
 	bool first_res = false;
@@ -1046,7 +954,7 @@ Mission::prepare_mission_items(bool onboard, struct mission_item_s *mission_item
 }
 
 bool
-Mission::read_mission_item(bool onboard, int offset, struct mission_item_s *mission_item)
+PointAToB::read_mission_item(bool onboard, int offset, struct mission_item_s *mission_item)
 {
 	/* select onboard/offboard mission */
 	int *mission_index_ptr;
@@ -1148,7 +1056,7 @@ Mission::read_mission_item(bool onboard, int offset, struct mission_item_s *miss
 }
 
 void
-Mission::save_offboard_mission_state()
+PointAToB::save_offboard_mission_state()
 {
 	mission_s mission_state;
 
@@ -1193,44 +1101,7 @@ Mission::save_offboard_mission_state()
 }
 
 void
-Mission::report_do_jump_mission_changed(int index, int do_jumps_remaining)
-{
-	/* inform about the change */
-	_navigator->get_mission_result()->item_do_jump_changed = true;
-	_navigator->get_mission_result()->item_changed_index = index;
-	_navigator->get_mission_result()->item_do_jump_remaining = do_jumps_remaining;
-	_navigator->set_mission_result_updated();
-}
-
-void
-Mission::set_mission_item_reached()
-{
-	_navigator->get_mission_result()->reached = true;
-	_navigator->get_mission_result()->seq_reached = _current_offboard_mission_index;
-	_navigator->set_mission_result_updated();
-	reset_mission_item_reached();
-}
-
-void
-Mission::set_current_offboard_mission_item()
-{
-	_navigator->get_mission_result()->reached = false;
-	_navigator->get_mission_result()->finished = false;
-	_navigator->get_mission_result()->seq_current = _current_offboard_mission_index;
-	_navigator->set_mission_result_updated();
-
-	save_offboard_mission_state();
-}
-
-void
-Mission::set_mission_finished()
-{
-	_navigator->get_mission_result()->finished = true;
-	_navigator->set_mission_result_updated();
-}
-
-void
-Mission::check_mission_valid(bool force)
+PointAToB::check_mission_valid(bool force)
 {
 
 	if ((!_home_inited && _navigator->home_position_valid()) || force) {
@@ -1258,7 +1129,7 @@ Mission::check_mission_valid(bool force)
 }
 
 void
-Mission::reset_offboard_mission(struct mission_s &mission)
+PointAToB::reset_offboard_mission(struct mission_s &mission)
 {
 	dm_lock(DM_KEY_MISSION_STATE);
 
@@ -1308,7 +1179,7 @@ Mission::reset_offboard_mission(struct mission_s &mission)
 }
 
 bool
-Mission::need_to_reset_mission(bool active)
+PointAToB::need_to_reset_mission(bool active)
 {
 	/* reset mission state when disarmed */
 	if (_navigator->get_vstatus()->arming_state != vehicle_status_s::ARMING_STATE_ARMED && _need_mission_reset) {
