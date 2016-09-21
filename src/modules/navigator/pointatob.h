@@ -88,6 +88,8 @@ public:
 		MISSION_YAWMODE_MAX = 4
 	};
 
+    const unsigned DM_POINT_COUNT = 4;
+
 private:
     /**
      * Get next waypoint from direction and distance

@@ -1106,13 +1106,13 @@ PointAToB::check_mission_valid(bool force)
 
 	if ((!_home_inited && _navigator->home_position_valid()) || force) {
 
-		dm_item_t dm_current = DM_KEY_WAYPOINTS_OFFBOARD(_offboard_mission.dataman_id);
+        dm_item_t dm_current = DM_KEY_WAYPOINTS_OFFBOARD(DM_KEY_POINTATOB);
 
 		_navigator->get_mission_result()->valid =
 			_missionFeasibilityChecker.checkMissionFeasible(
 				_navigator->get_mavlink_log_pub(),
 				(_navigator->get_vstatus()->is_rotary_wing || _navigator->get_vstatus()->is_vtol),
-				dm_current, (size_t) _offboard_mission.count, _navigator->get_geofence(),
+                dm_current, DM_POINT_COUNT, _navigator->get_geofence(),
 				_navigator->get_home_position()->alt,
 				_navigator->home_position_valid(),
 				_navigator->get_global_position()->lat,
