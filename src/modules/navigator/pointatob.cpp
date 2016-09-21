@@ -1104,15 +1104,13 @@ void
 PointAToB::check_mission_valid(bool force)
 {
 
-	if ((!_home_inited && _navigator->home_position_valid()) || force) {
-
-        dm_item_t dm_current = DM_KEY_WAYPOINTS_OFFBOARD(DM_KEY_POINTATOB);
+    if ((!_home_inited && _navigator->home_position_valid()) || force) {
 
 		_navigator->get_mission_result()->valid =
 			_missionFeasibilityChecker.checkMissionFeasible(
 				_navigator->get_mavlink_log_pub(),
 				(_navigator->get_vstatus()->is_rotary_wing || _navigator->get_vstatus()->is_vtol),
-                dm_current, DM_POINT_COUNT, _navigator->get_geofence(),
+                DM_KEY_POINTATOB, DM_POINT_COUNT, _navigator->get_geofence(),
 				_navigator->get_home_position()->alt,
 				_navigator->home_position_valid(),
 				_navigator->get_global_position()->lat,
@@ -1122,8 +1120,6 @@ PointAToB::check_mission_valid(bool force)
 				_navigator->get_default_acceptance_radius(),
 				_navigator->get_land_detected()->landed);
 
-		_navigator->increment_mission_instance_count();
-		_navigator->set_mission_result_updated();
 		_home_inited = _navigator->home_position_valid();
 	}
 }
