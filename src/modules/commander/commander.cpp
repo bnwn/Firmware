@@ -298,7 +298,7 @@ static bool is_hil_setup(int id) {
 /**
  * reset current point in point A to B mode
  */
-int8_t reset_current_point_atob(double lat_now, double lon_now);
+bool reset_current_point_atob(double lat_now, double lon_now);
 
 /**
  * restart point A to B
@@ -308,7 +308,7 @@ void point_atob_init();
 /**
  * save break point when pesticide isn't remaining if in point A to B mode
  */
-int8_t handle_break_point(double lat_now, double lon_now, double alt_now);
+bool handle_break_point(double lat_now, double lon_now, double alt_now);
 
 int commander_main(int argc, char *argv[])
 {
@@ -1405,10 +1405,10 @@ int commander_thread_main(int argc, char *argv[])
     if (dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_B, &pointatob_item, sizeof(pointatob_item_s)) == sizeof(pointatob_item_s)) {
         if (pointatob_item.current_seq > 0) {
             mavlink_log_info(&mavlink_log_pub, "[cmd] Point A to B loaded, A: lat:%.6f, lon:%.6f, alt:%.6f", \
-                             pointatob_item.lat, pointatob_item.lon, pointatob_item.altitude);
+                             (double)pointatob_item.lat, (double)pointatob_item.lon, (double)pointatob_item.altitude);
             if (dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_A, &pointatob_item, sizeof(pointatob_item_s)) == sizeof(pointatob_item_s)) {
                 mavlink_log_info(&mavlink_log_pub, "[cmd]                    B: lat:%.6f, lon:%.6f, alt%.6f", \
-                                 pointatob_item.lat, pointatob_item.lon, pointatob_item.altitude);
+                                (double)pointatob_item.lat, (double)pointatob_item.lon, (double)pointatob_item.altitude);
 
                 status_flags.condition_pointatob_enabled = true;
 
@@ -2505,9 +2505,6 @@ int commander_thread_main(int argc, char *argv[])
                 if (status_flags.condition_global_position_valid && switch_on_counter > 0) {
                     /* hold a little time to reset current point if landed and point A to B mode is enabled */
                     if (land_detector.landed && status_flags.condition_pointatob_enabled) {
-                        pointatob_item_s point_item_tmp;
-                        const size_t len = sizeof(pointatob_item_s);
-
                         if (reset_current_point_atob(global_position.lat, global_position.lon)) {
                             print_point_set_status(POINT_RESET_SUCCESS, "current point reset success.");
 
@@ -2519,7 +2516,7 @@ int commander_thread_main(int argc, char *argv[])
                         /* hold a little time to set A and B point if on air */
                     } else {
                         pointatob_item_s pointatob_item_tmp;
-                        const size_t len = sizeof(pointatob_item_s);
+                        const size_t len = sizeof(struct pointatob_item_s);
 
                         pointatob_item_tmp.altitude = global_position.alt - _home.alt;
                         pointatob_item_tmp.altitude_is_relative = true;
@@ -2529,7 +2526,7 @@ int commander_thread_main(int argc, char *argv[])
 
                         /* save item from sequence head */
                         if (dm_write(DM_KEY_POINTATOB, point_current_seq, DM_PERSIST_POWER_ON_RESET, &pointatob_item_tmp, len) == len) {
-                            print_point_set_status(point_current_seq, "savint point item success.");
+                            print_point_set_status((POINT_SET_FLAG)point_current_seq, "savint point item success.");
 
                             if (POINT_B_SET_SUCCESS == point_current_seq) {
                                 point_atob_init();
@@ -2908,7 +2905,7 @@ int commander_thread_main(int argc, char *argv[])
                                 }
                             }
 
-                            memset(&mission_item_tmp, 0 len);
+                            memset(&mission_item_tmp, 0 ,len);
 
                             /* set remaining point as IDLE */
                             for (int i=offset; i<mission.count; i++) {
@@ -4309,22 +4306,22 @@ void *commander_low_prio_loop(void *arg)
 	return NULL;
 }
 
-int8_t reset_current_point_atob(double lat_now, double lon_now)
+bool reset_current_point_atob(double lat_now, double lon_now)
 {
     struct pointatob_item_s point_item_a, point_item_b, point_item_current, point_item_next, point_item_tmp;
-    const size_t len = sizeof(pointatob_item_s);
+    const size_t len = sizeof(struct pointatob_item_s);
     float distance_atoc, distance_btoc;
 
     param_t param_interval_distance;
     int32_t interval_distance;
 
     param_interval_distance = param_find("ATOB_INTERVAL_DISTANCE");
-    interval_distance = param_get(param_interval_distance, interval_distance);
+    interval_distance = param_get(param_interval_distance, &interval_distance);
 
     /* if point A not saved or read error return -1 */
     if ((dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_A, &point_item_a, len) != len) || \
             (dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_B, &point_item_b, len) != len)) {
-        return -1;
+        return false;
     }
 
     distance_atoc = get_distance_to_next_waypoint(point_item_a.lat, point_item_a.lon, lat_now, lon_now);
@@ -4338,8 +4335,8 @@ int8_t reset_current_point_atob(double lat_now, double lon_now)
     float angle_error = fabsf(point_item_tmp.turn_bearing - get_bearing_to_next_waypoint(point_item_tmp.lat, point_item_tmp.lon, lat_now, lon_now));
 
     /* Sacrifice precision to premote excute speed */
-    /* int32_t distance_min_int = (int32_t) distance_min;
-    distance_min_int = distance_min_int * cos(angle_error);
+    int32_t distance_min_int = (int32_t) distance_min;
+    distance_min_int = distance_min_int * (100 * cos(angle_error)) / 100;
     int32_t distance_error = distance_min_int % interval_distance;
 
     if ((distance_error * 2) >= interval_distance) {
@@ -4349,12 +4346,12 @@ int8_t reset_current_point_atob(double lat_now, double lon_now)
         distance_min_int = distance_min_int - distance_error;
     }
 
-    waypoint_from_heading_and_distance(point_item_tmp.lat, point_item_tmp.lon, point_item_tmp.turn_bearing, (float)distance_min_int, &point_item_tmp.lat, &point_item_tmp.lon);
-    */
+    waypoint_from_heading_and_distance(point_item_tmp.lat, point_item_tmp.lon, point_item_tmp.turn_bearing, (float)distance_min_int, &point_item_current.lat, &point_item_current.lon);
 
-    /* use float minium distance to calculate closest point C */
-    distance_min = distance_min * cos(angle_error);
-    float distance_error = distance_min % interval_distance;
+
+    /* use float minium distance to calculate closest point C
+    distance_min = distance_min * (float)cos(angle_error);
+    float distance_error = distance_min % (float)interval_distance;
 
     if ((distance_error * 2) >= interval_distance) {
         distance_min = distance_min - distance_error + interval_distance;
@@ -4364,15 +4361,15 @@ int8_t reset_current_point_atob(double lat_now, double lon_now)
     }
 
     waypoint_from_heading_and_distance(point_item_tmp.lat, point_item_tmp.lon, point_item_tmp.turn_bearing, distance_min, &point_item_current.lat, &point_item_current.lon);
+    **/
 
     point_item_current.altitude = point_item_a.altitude;
     point_item_current.altitude_is_relative = true;
     point_item_current.distance_multiple = (int32_t)(distance_min / interval_distance);
     point_item_current.current_seq = point_item_a.current_seq ? ((point_item_current.distance_multiple % 2) ^ 1) : (point_item_current.distance_multiple % 2);
 
-    /* Current point write failed */
     if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_CURRENT, DM_PERSIST_POWER_ON_RESET, &point_item_current, len) != len) {
-        return -1;
+        return false;
     }
 
     /* generate next point */
@@ -4403,13 +4400,17 @@ int8_t reset_current_point_atob(double lat_now, double lon_now)
     waypoint_from_heading_and_distance(point_item_tmp.lat, point_item_tmp.lon, point_item_tmp.turn_bearing, \
                                        (float)(point_item_next.distance_multiple * interval_distance), &point_item_next.lat, &point_item_next.lon);
 
-    return 1;
+    if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_NEXT, DM_PERSIST_POWER_ON_RESET, &point_item_next, len) != len) {
+        return false;
+    }
+
+    return true;
 }
 
 void point_atob_init()
 {
     struct pointatob_item_s point_item_a, point_item_b;
-    const size_t len = sizeof(pointatob_item_s);
+    const size_t len = sizeof(struct pointatob_item_s);
     float bearing_atob;
 
     param_t param_turn_direction;
@@ -4424,6 +4425,7 @@ void point_atob_init()
             bearing_atob = get_bearing_to_next_waypoint(point_item_a.lat, point_item_a.lon, point_item_b.lat, point_item_b.lon);
 
             point_item_a.turn_bearing = point_item_b.turn_bearing = bearing_atob + turn_direction * M_PI_2_F;
+            point_item_a.yaw = point_item_b.yaw = NAN;
 
             if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_A, DM_PERSIST_POWER_ON_RESET, &point_item_a, len) == len) {
                 if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_B, DM_PERSIST_POWER_ON_RESET, &point_item_b, len) == len) {
@@ -4462,13 +4464,18 @@ void point_atob_init()
     status_flags.condition_pointatob_enabled = false;
 }
 
-uint8_t handle_break_point(double lat_now, double lon_now, double alt_now)
+bool handle_break_point(double lat_now, double lon_now, double alt_now)
 {
     struct pointatob_item_s point_item_current;
     size_t len = sizeof(pointatob_item_s);
 
     if (dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_CURRENT, &point_item_current, len) != len) {
-        return -1;
+        return false;
+    }
+
+    /* we have new current point, so set older to next */
+    if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_NEXT, DM_PERSIST_POWER_ON_RESET, &point_item_current, len) != len) {
+        return false;
     }
 
     point_item_current.altitude = alt_now;
@@ -4477,8 +4484,8 @@ uint8_t handle_break_point(double lat_now, double lon_now, double alt_now)
     point_item_current.lon = lon_now;
 
     if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_CURRENT, DM_PERSIST_POWER_ON_RESET, &point_item_current, len) != len) {
-        return -1;
+        return false;
     }
 
-    return 1;
+    return false;
 }

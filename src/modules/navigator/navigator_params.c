@@ -169,3 +169,61 @@ PARAM_DEFINE_INT32(NAV_AH_LON, 1518423250);
  * @group Data Link Loss
  */
 PARAM_DEFINE_FLOAT(NAV_AH_ALT, 600.0f);
+
+
+/**
+ * Set farming mode
+ *
+ * @value 0 off
+ * @value 1 on(default)
+ * @min 0
+ * @max 1
+ * @reboot_required true
+ * @group System
+ */
+PARAM_DEFINE_INT32(FARMING_MISSION, 1);
+
+/**
+ * Point A to B turn direction
+ *
+ * @value 1 right(default)
+ * @value -1 left
+ * @min -1
+ * @max 1
+ * @reboot_required true
+ * @group System
+ */
+PARAM_DEFINE_INT32(ATOB_TURN_DIR, 0);
+
+/**
+ * Point A to B interval distance(m)
+ *
+ * @value 5 (default)
+ * @min 0
+ * @max 100
+ * @reboot_required true
+ * @group System
+ */
+PARAM_DEFINE_INT32(ATOB_INTERVAL_D, 5);
+
+/**
+ * Point A to B relative altitude(m)
+ *
+ * @value 0 (default)
+ * @min 0
+ * @max 100
+ * @reboot_required true
+ * @group System
+ */
+PARAM_DEFINE_INT32(ATOB_FLIGHT_ALT, 0);
+
+/**
+ * Whether takeoff before point A to B
+ *
+ * @value 0 (default)
+ * @min 0
+ * @max 1
+ * @reboot_required true
+ * @group System
+ */
+PARAM_DEFINE_INT32(TAKEOFF_SWITCH, 0);
