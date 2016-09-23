@@ -193,7 +193,7 @@ PARAM_DEFINE_INT32(FARMING_MISSION, 1);
  * @reboot_required true
  * @group System
  */
-PARAM_DEFINE_INT32(ATOB_TURN_DIR, 0);
+PARAM_DEFINE_INT32(ATOB_TURN_DIR, 1);
 
 /**
  * Point A to B interval distance(m)

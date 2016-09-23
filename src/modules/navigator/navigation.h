@@ -46,6 +46,7 @@
 #include <stdbool.h>
 
 #define NUM_MISSIONS_SUPPORTED 256
+#define NUM_POINT_SUPPORTED 5
 
 #define NAV_EPSILON_POSITION	0.001f	/**< Anything smaller than this is considered zero */
 

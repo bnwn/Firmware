@@ -131,9 +131,9 @@ typedef enum POINT_SET_FLAG
 {
     POINT_A_SET_SUCCESS=0,
     POINT_B_SET_SUCCESS=1,
-    POINT_SET_FAILURE=2,
-    POINT_CLEAR_SUCCESS=3,
-    POINT_RESET_SUCCESS=4,
+    POINT_SET_FAILURE=2,   
+    POINT_RESET_SUCCESS=3,
+    POINT_CLEAR_SUCCESS=4,
 } POINT_SET_FLAG;
 
 static constexpr uint8_t COMMANDER_MAX_GPS_NOISE = 60;		/**< Maximum percentage signal to noise ratio allowed for GPS reception */
@@ -2503,6 +2503,7 @@ int commander_thread_main(int argc, char *argv[])
 
                 /* do point handle only if global position is valid */
                 if (status_flags.condition_global_position_valid && switch_on_counter > 0) {
+               // if (switch_on_counter > 0) {
                     /* hold a little time to reset current point if landed and point A to B mode is enabled */
                     if (land_detector.landed && status_flags.condition_pointatob_enabled) {
                         if (reset_current_point_atob(global_position.lat, global_position.lon)) {
@@ -2514,7 +2515,8 @@ int commander_thread_main(int argc, char *argv[])
                         }
 
                         /* hold a little time to set A and B point if on air */
-                    } else {
+                    } //else {
+                    else if (!land_detector.landed){
                         pointatob_item_s pointatob_item_tmp;
                         const size_t len = sizeof(struct pointatob_item_s);
 
@@ -2526,10 +2528,14 @@ int commander_thread_main(int argc, char *argv[])
 
                         /* save item from sequence head */
                         if (dm_write(DM_KEY_POINTATOB, point_current_seq, DM_PERSIST_POWER_ON_RESET, &pointatob_item_tmp, len) == len) {
-                            print_point_set_status((POINT_SET_FLAG)point_current_seq, "savint point item success.");
 
-                            if (POINT_B_SET_SUCCESS == point_current_seq) {
+                            if (1 == point_current_seq) {
                                 point_atob_init();
+
+                            } else {
+                                print_point_set_status((POINT_SET_FLAG)point_current_seq, "saving point A item success.");
+                                /* need to set point B */
+                                status_flags.condition_pointatob_enabled = false;
                             }
 
                             point_current_seq = 1 ^ point_current_seq;
@@ -2865,16 +2871,19 @@ int commander_thread_main(int argc, char *argv[])
                             struct mission_item_s mission_item_tmp;
                             const ssize_t len = sizeof(struct mission_item_s);
                             /* offboard mission */
-                            dm_item_t dm_item;
-                            dm_item = DM_KEY_WAYPOINTS_OFFBOARD(mission.dataman_id);
+                            dm_item_t dm_item_read, dm_item_write;
+                            int dataman_id = mission.dataman_id ^ 1;
+                            dm_item_read = DM_KEY_WAYPOINTS_OFFBOARD(mission.dataman_id);
+                            dm_item_write = DM_KEY_WAYPOINTS_OFFBOARD(dataman_id);
+
 
                             int offset = 0;
                             const int new_count = mission.count - mission_result.seq_current;
                             for (; offset<=new_count; offset++) {
                                 /* read mission item from datamanager */
-                                if (dm_read(dm_item, mission_result.seq_current-1+offset, &mission_item_tmp,len) != len) {
+                                if (dm_read(dm_item_read, mission_result.seq_current-1+offset, &mission_item_tmp,len) != len) {
                                     /* not supposed to happen unless the datamanager can not access the SD card */
-                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point1");
+                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point");
                                     mission.dataman_id = 0;
                                     mission.count = 0;
                                     break;
@@ -2891,43 +2900,45 @@ int commander_thread_main(int argc, char *argv[])
                                 }
 
                                 /* next waypoint is no longer follow this one which is the last waypoint */
-                                if (new_count == offset) {
-                                    mission_item_tmp.autocontinue = false;
-                                }
+//                                if (new_count == offset) {
+//                                    mission_item_tmp.autocontinue = false;
+//                                }
 
                                 /* save item from sequence head */
-                                if (dm_write(dm_item, offset, DM_PERSIST_POWER_ON_RESET, &mission_item_tmp, len) != len) {
+                                if (dm_write(dm_item_write, offset, DM_PERSIST_POWER_ON_RESET, &mission_item_tmp, len) != len) {
                                     /* not supposed to happen unless the datamanager can not access the SD card */
-                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point2");
+                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point");
                                     mission.dataman_id = 0;
                                     mission.count = 0;
                                     break;
                                 }
                             }
 
-                            memset(&mission_item_tmp, 0 ,len);
+                            dm_clear(dm_item_read);
+                            //memset(&mission_item_tmp, 0 ,len);
 
                             /* set remaining point as IDLE */
-                            for (int i=offset; i<mission.count; i++) {
-                                /* save item from sequence head */
-                                if (dm_write(dm_item, offset, DM_PERSIST_POWER_ON_RESET, &mission_item_tmp, len) != len) {
-                                    /* not supposed to happen unless the datamanager can not access the SD card */
-                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point2");
-                                    mission.dataman_id = 0;
-                                    mission.count = 0;
-                                    break;
-                                }
-                            }
+//                            for (int i=offset; i<mission.count; i++) {
+//                                /* save item from sequence head */
+//                                if (dm_write(dm_item, i, DM_PERSIST_POWER_ON_RESET, &mission_item_tmp, len) != len) {
+//                                    /* not supposed to happen unless the datamanager can not access the SD card */
+//                                    mavlink_log_critical(&mavlink_log_pub, "reading mission item failed when save break point");
+//                                    mission.dataman_id = 0;
+//                                    mission.count = 0;
+//                                    break;
+//                                }
+//                            }
 
                             /* set mission count if all item write successful */
                             if (offset > new_count) {
-                                mission.count = new_count;
+                                mission.dataman_id = dataman_id;
+                                mission.count = new_count + 1;
                                 break_point_set_up = true;
                             }
                         }
 
                     } else {
-                        const char *missionfail = "reading mission state failed when save break point4";
+                        const char *missionfail = "reading mission state failed when save break point";
                         warnx("%s", missionfail);
                         mavlink_log_critical(&mavlink_log_pub, missionfail);
 
@@ -3941,7 +3952,7 @@ print_point_set_status(POINT_SET_FLAG pflag, const char *msg)
 
     if (t - last_print_mode_reject_time > PRINT_MODE_REJECT_INTERVAL) {
         last_print_mode_reject_time = t;
-        mavlink_log_critical(&mavlink_log_pub, msg);
+        mavlink_log_info(&mavlink_log_pub, msg);
 
         switch (pflag) {
         case POINT_SET_FAILURE:
@@ -4315,12 +4326,15 @@ bool reset_current_point_atob(double lat_now, double lon_now)
     param_t param_interval_distance;
     int32_t interval_distance;
 
-    param_interval_distance = param_find("ATOB_INTERVAL_DISTANCE");
-    interval_distance = param_get(param_interval_distance, &interval_distance);
+    param_interval_distance = param_find("ATOB_INTERVAL_D");
+    param_get(param_interval_distance, &interval_distance);
 
     /* if point A not saved or read error return -1 */
-    if ((dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_A, &point_item_a, len) != len) || \
-            (dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_B, &point_item_b, len) != len)) {
+    if (dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_A, &point_item_a, len) != len) {
+        return false;
+    }
+
+    if (dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_B, &point_item_b, len) != len) {
         return false;
     }
 
@@ -4340,7 +4354,7 @@ bool reset_current_point_atob(double lat_now, double lon_now)
     int32_t distance_error = distance_min_int % interval_distance;
 
     if ((distance_error * 2) >= interval_distance) {
-        distance_min_int = distance_min_int - distance_error + interval_distance;
+       distance_min_int = distance_min_int - distance_error + interval_distance;
 
     } else {
         distance_min_int = distance_min_int - distance_error;
@@ -4349,60 +4363,60 @@ bool reset_current_point_atob(double lat_now, double lon_now)
     waypoint_from_heading_and_distance(point_item_tmp.lat, point_item_tmp.lon, point_item_tmp.turn_bearing, (float)distance_min_int, &point_item_current.lat, &point_item_current.lon);
 
 
-    /* use float minium distance to calculate closest point C
-    distance_min = distance_min * (float)cos(angle_error);
-    float distance_error = distance_min % (float)interval_distance;
+//    /* use float minium distance to calculate closest point C
+//    distance_min = distance_min * (float)cos(angle_error);
+//    float distance_error = distance_min % (float)interval_distance;
 
-    if ((distance_error * 2) >= interval_distance) {
-        distance_min = distance_min - distance_error + interval_distance;
+//    if ((distance_error * 2) >= interval_distance) {
+//        distance_min = distance_min - distance_error + interval_distance;
 
-    } else {
-        distance_min = distance_min - distance_error;
-    }
+//    } else {
+//        distance_min = distance_min - distance_error;
+//    }
 
-    waypoint_from_heading_and_distance(point_item_tmp.lat, point_item_tmp.lon, point_item_tmp.turn_bearing, distance_min, &point_item_current.lat, &point_item_current.lon);
-    **/
+//    waypoint_from_heading_and_distance(point_item_tmp.lat, point_item_tmp.lon, point_item_tmp.turn_bearing, distance_min, &point_item_current.lat, &point_item_current.lon);
+//    **/
 
     point_item_current.altitude = point_item_a.altitude;
     point_item_current.altitude_is_relative = true;
     point_item_current.distance_multiple = (int32_t)(distance_min / interval_distance);
     point_item_current.current_seq = point_item_a.current_seq ? ((point_item_current.distance_multiple % 2) ^ 1) : (point_item_current.distance_multiple % 2);
 
-    if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_CURRENT, DM_PERSIST_POWER_ON_RESET, &point_item_current, len) != len) {
-        return false;
-    }
+//    if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_CURRENT, DM_PERSIST_POWER_ON_RESET, &point_item_current, len) != len) {
+//        return false;
+//    }
 
-    /* generate next point */
-    point_item_next.current_seq = point_item_current.current_seq ^ 1;
+//    /* generate next point */
+//    point_item_next.current_seq = point_item_current.current_seq ^ 1;
 
-    /* next point on the same side with current point */
-    if (1 == point_item_current.current_seq) {
-        point_item_next.distance_multiple = point_item_current.distance_multiple + 1;
+//    /* next point on the same side with current point */
+//    if (1 == point_item_current.current_seq) {
+//        point_item_next.distance_multiple = point_item_current.distance_multiple + 1;
 
-        /* next point on the offside with current point */
-    } else {
-        point_item_next.distance_multiple = point_item_current.distance_multiple;
-    }
+//        /* next point on the offside with current point */
+//    } else {
+//        point_item_next.distance_multiple = point_item_current.distance_multiple;
+//    }
 
-    /* estimate whether the current on the same side with point A or B */
-    if (point_item_current.distance_multiple % 2 == point_item_current.current_seq) {
-        /* next point on the same side with point A */
-        point_item_tmp = point_item_a;
+//    /* estimate whether the current on the same side with point A or B */
+//    if (point_item_current.distance_multiple % 2 == point_item_current.current_seq) {
+//        /* next point on the same side with point A */
+//        point_item_tmp = point_item_a;
 
-        /* next point on the same side with point B */
-    } else {
-        point_item_tmp = point_item_b;
-    }
+//        /* next point on the same side with point B */
+//    } else {
+//        point_item_tmp = point_item_b;
+//    }
 
     point_item_next.altitude = point_item_tmp.altitude;
     point_item_next.altitude_is_relative = point_item_tmp.altitude_is_relative;
 
-    waypoint_from_heading_and_distance(point_item_tmp.lat, point_item_tmp.lon, point_item_tmp.turn_bearing, \
-                                       (float)(point_item_next.distance_multiple * interval_distance), &point_item_next.lat, &point_item_next.lon);
+    waypoint_from_heading_and_distance(point_item_tmp.lat, point_item_tmp.lon, point_item_tmp.turn_bearing,
+                                      (float)(point_item_next.distance_multiple * interval_distance), &point_item_next.lat, &point_item_next.lon);
 
-    if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_NEXT, DM_PERSIST_POWER_ON_RESET, &point_item_next, len) != len) {
-        return false;
-    }
+//    if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_NEXT, DM_PERSIST_POWER_ON_RESET, &point_item_next, len) != len) {
+//        return false;
+//    }
 
     return true;
 }
@@ -4416,7 +4430,7 @@ void point_atob_init()
     param_t param_turn_direction;
     int32_t turn_direction;
 
-    param_turn_direction = param_find("ATOB_TURN_DIRECTION");
+    param_turn_direction = param_find("ATOB_TURN_DIR");
     param_get(param_turn_direction, &turn_direction);
 
     if (dm_read(DM_KEY_POINTATOB, DM_KEY_POINT_A, &point_item_a, len) == len) {
@@ -4432,7 +4446,7 @@ void point_atob_init()
                     if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_CURRENT, DM_PERSIST_POWER_ON_RESET, &point_item_a, len) == len) {
                         if (dm_write(DM_KEY_POINTATOB, DM_KEY_POINT_NEXT, DM_PERSIST_POWER_ON_RESET, &point_item_b, len) == len) {
 
-                            print_point_set_status(POINT_RESET_SUCCESS, "point A to B restart success.");
+                            print_point_set_status(POINT_RESET_SUCCESS, "point A to B set up.");
                             status_flags.condition_pointatob_enabled = true;
                             return;
 

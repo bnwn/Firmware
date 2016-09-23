@@ -545,6 +545,10 @@ Navigator::task_main()
 				_pos_sp_triplet_published_invalid_once = false;
 				_navigation_mode = &_mission;
 				break;
+            case vehicle_status_s::NAVIGATION_STATE_POINTATOB:
+                _pos_sp_triplet_published_invalid_once = false;
+                _navigation_mode = &_pointatob;
+                break;
 			case vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER:
 				_pos_sp_triplet_published_invalid_once = false;
 				_navigation_mode = &_loiter;
